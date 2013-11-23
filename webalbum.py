@@ -348,8 +348,9 @@ def GetDirUrls(item, dirs):
         urls.append(d.url)
     return urls
 
-def GetLink(url, linkText):
-    return "<a href=\""+url+"\">"+linkText+"</a>"
+def GetLink(url, linkText, newTab=False):
+    target = " target=\"_blank\"" if newTab else ""
+    return "<a href=\""+url+"\""+target+">"+linkText+"</a>"
 
 def render_parent_prev_next(item):
     tmpitem = AlbumItem(ALBUM_ROOT+"/"+item.parentdir) if item.isfile else item
@@ -397,7 +398,7 @@ def render_dir_page(item):
         for f in files:
             if col == 0:
                 out += "<tr>\n"
-            out += "<td><center>"+get_file_link_with_thumbnail(f)+"</center></td>\n"
+            out += "<td><center>"+get_file_link_with_thumbnail(f, newTab=True)+"</center></td>\n"
             col += 1
             if col == columns:
                 col = 0
@@ -407,7 +408,7 @@ def render_dir_page(item):
 
     return out
 
-def get_file_link_with_thumbnail(item):
+def get_file_link_with_thumbnail(item, newTab=False):
     outfile = item.thumbnail_local
     try:
         if not os.path.exists(outfile):
@@ -421,10 +422,10 @@ def get_file_link_with_thumbnail(item):
     out = ""
     imgPath = item.thumbnail_web if fileOk else ERROR_THUMBNAIL
     out += "<br/>"+GetLink(item.url, "<img style=\"max-width:95%;border:3px solid black;\" src=\""+\
-            imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+item.basename+"</img>"+"\n")
+            imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+item.basename+"</img>"+"\n", newTab=newTab)
     return out
 
-def get_file_link_with_view(item):
+def get_file_link_with_view(item, newTab=False):
     outfile = item.view_local
     try:
         if not os.path.exists(outfile):
@@ -438,7 +439,7 @@ def get_file_link_with_view(item):
     out = ""
     imgPath = item.view_web if fileOk else ERROR_VIEW
     out += "<br/>"+GetLink(item.web_original, "<img style=\"max-width:95%;border:3px solid black;\" src=\""+\
-            imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+item.basename+"</img>"+"\n")
+            imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+item.basename+"</img>"+"\n", newTab=newTab)
     return out
     
 def get_item_index(item, items):
@@ -462,7 +463,7 @@ def render_file_page(item):
         out += get_file_link_with_thumbnail(files[fileIndex-1])
     out += "</center></td>\n<td><center>"
     out += "<br/>"+GetLink(parent.url, parent.text)+"<br/>\n"
-    out += get_file_link_with_view(item)
+    out += get_file_link_with_view(item, newTab=True)
     out += "<br/>Click image to see full size original\n"
     out += "</center></td>\n<td width=\"20%\" align=\"top\"><center>"
     if fileIndex < len(files) - 1:
