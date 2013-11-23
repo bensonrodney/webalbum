@@ -421,8 +421,11 @@ def get_file_link_with_thumbnail(item, newTab=False):
         fileOk=False
     out = ""
     imgPath = item.thumbnail_web if fileOk else ERROR_THUMBNAIL
+    basename = item.basename
+    if len(basename) > 20:
+        basename = basename[:6]+"..."+basename[-8:]
     out += "<br/>"+GetLink(item.url, "<img style=\"max-width:95%;border:3px solid black;\" src=\""+\
-            imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+item.basename+"</img>"+"\n", newTab=newTab)
+            imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+basename+"</img>"+"\n", newTab=newTab)
     return out
 
 def get_file_link_with_view(item, newTab=False):
