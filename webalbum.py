@@ -79,6 +79,10 @@ here is to explain this webalbum.
          sized image from the original. eg: ERROR_VIEW=WEB_PREVIEW_FILE_DIR+"/error_view.png"
          The file should preferrably be in WEB_PREVIEW_FILE_DIR
 
+Python Module Requirements: 
+    - PIL - Python Imaging Library (http://www.pythonware.com/products/pil/)
+    - ffvideo (https://pypi.python.org/pypi/FFVideo)
+
 """
 
 import cgi
@@ -90,6 +94,7 @@ import shlex, subprocess
 import getpass
 import urllib
 import Image
+from ffvideo import VideoStream
 
 
 #------ CONFIGURATION SECTION ----------
@@ -110,11 +115,13 @@ def get_conf_item(param):
     return value
 
 # local root directory containing the original images (the base directory of the source images)
-ALBUM_ROOT="/mnt/hddData/photos"
+#ALBUM_ROOT="/mnt/hddData/photos"
+ALBUM_ROOT="/home/jason/Pictures"
 
 # the web directory of the original images relative to the server root (yes, my url contains "httpserver" - long story)
 # eg: http://www.mydomain.org/httpserver/photos-orig/ is the web dir where the original photos are
-WEB_ORIGINALS_ROOT="/httpserver/photos-orig"
+#WEB_ORIGINALS_ROOT="/httpserver/photos-orig"
+WEB_ORIGINALS_ROOT="/pics"
 
 # base url of this cgi script eg: http://www.mydomain.org/cgi-bin/webalbum is the url to the 
 URL_BASE="/cgi-bin/webalbum"
@@ -165,6 +172,11 @@ class AlbumItem(object):
     def _get_basename(self):
         return os.path.basename(self._path)
     basename = property(_get_basename)
+    
+    def _get_basename_short(self):
+        bn = os.path.basename(self._path)
+        return bn if len(bn) < 21 else bn[:6]+"..."+bn[-8:]
+    basename_short = property(_get_basename_short)    
     
     def _get_parentdir(self):
         return os.path.dirname(self._path)
@@ -286,6 +298,15 @@ def filter_is_valid_file(path):
             return True
     return False
 
+def filter_is_valid_video(path):
+    if not os.path.isfile(path):
+        return False
+    basename = os.path.basename(path)
+    for ext in ['.avi', '.mp4', '.mov']:
+        if basename.lower().endswith(ext):
+            return True
+    return False
+
 def GetFilesAndDirs(subDir):
     if subDir.endswith("/"):
        subDir = subDir[:-1]
@@ -305,8 +326,12 @@ def GetFilesAndDirs(subDir):
     files = filter(filter_is_valid_file, fullPaths)
     fileItems = [AlbumItem(f) for f in files]
     sortedFiles = sorted(fileItems, key=lambda item: item.path)
+    
+    videos = filter(filter_is_valid_video, fullPaths)
+    videoItems = [AlbumItem(f) for f in videos]
+    sortedVideos = sorted(videoItems, key=lambda item: item.path)
 
-    return sortedDirs, sortedFiles
+    return sortedDirs, sortedFiles, sortedVideos
 
 def HTML_Header(page_title):
     out = "Content-type: text/html\n\n"
@@ -355,7 +380,7 @@ def GetLink(url, linkText, newTab=False):
 def render_parent_prev_next(item):
     tmpitem = AlbumItem(ALBUM_ROOT+"/"+item.parentdir) if item.isfile else item
     parent = AlbumItem(ALBUM_ROOT+"/"+tmpitem.parentdir)
-    siblingDirs, siblingFiles = GetFilesAndDirs(parent.path)
+    siblingDirs, siblingFiles, siblingVideos = GetFilesAndDirs(parent.path)
     dirIndex = get_item_index(tmpitem, siblingDirs)
     parent.text = "Parent Directory"
 
@@ -383,13 +408,29 @@ def GetDirLinksHeading(dirItem):
     return out
 
 def render_dir_page(item):
-    dirs, files = GetFilesAndDirs(item.path)
+    dirs, files, videos = GetFilesAndDirs(item.path)
     out = GetDirLinksHeading(item)
     dirLinks = render_parent_prev_next(item)
     out += dirLinks
 
     for d in dirs:
         out += "<br/>"+GetLink(d.url, d.basename)+"\n"
+    
+    if len(videos)> 0:
+        out += "<br/><b>Video Links</b>\n"
+        out += "<br/><centre><table>\n"
+        columns = 5
+        col = 0
+        for f in videos:
+            if col == 0:
+                out += "<tr>\n"
+            out += "<td><center>"+get_video_link_with_thumbnail(f)+"</center></td>\n"
+            col += 1
+            if col == columns:
+                col = 0
+                out += "</tr>\n"
+        out += "</table></center>\n<br/>\n"
+
     if len(files) > 0:
         out += "<br/><b>File Links</b>\n"
         out += "<br/><center><table>\n"
@@ -404,6 +445,8 @@ def render_dir_page(item):
                 col = 0
                 out += "</tr>\n"
         out += "</table></center>\n<br/>\n"
+
+    if len(videos) + len(files) > 15:
         out += "<br/><br/>\n" + dirLinks + "<br/><br/>\n"
 
     return out
@@ -421,11 +464,8 @@ def get_file_link_with_thumbnail(item, newTab=False):
         fileOk=False
     out = ""
     imgPath = item.thumbnail_web if fileOk else ERROR_THUMBNAIL
-    basename = item.basename
-    if len(basename) > 20:
-        basename = basename[:6]+"..."+basename[-8:]
     out += "<br/>"+GetLink(item.url, "<img style=\"max-width:95%;border:3px solid black;\" src=\""+\
-            imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+basename+"</img>"+"\n", newTab=newTab)
+            imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+item.basename_short+"</img>"+"\n", newTab=newTab)
     return out
 
 def get_file_link_with_view(item, newTab=False):
@@ -444,7 +484,27 @@ def get_file_link_with_view(item, newTab=False):
     out += "<br/>"+GetLink(item.web_original, "<img style=\"max-width:95%;border:3px solid black;\" src=\""+\
             imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+item.basename+"</img>"+"\n", newTab=newTab)
     return out
-    
+
+def get_video_link_with_thumbnail(item):
+    outfile = item.thumbnail_local
+    try:
+        if not os.path.exists(outfile):
+            # make video thumbnail
+            pass
+            pil_image = VideoStream(item.fullpath).get_frame_at_sec(5).image()
+            size = 250,250
+            pil_image.thumbnail(size)
+            pil_image.save(outfile)
+        fileOk=True
+    except:
+        fileOk=False
+    out = ""
+    imgPath = item.thumbnail_web if fileOk else ERROR_VIEW
+    out += "<br/>"+GetLink(item.web_original, "<img style=\"max-width:95%;border:3px solid black;\" src=\""+\
+            imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+item.basename_short+"</img>"+"\n", newTab=True)
+    return out
+
+
 def get_item_index(item, items):
     """ intended to return the index of the current item in the list of files in the directory """
     itemPaths = [i.path for i in items]
@@ -459,7 +519,7 @@ def render_file_page(item):
     out += dirLinks
     out += "<center>\n"
     parent.text = "Back to directory gallery"
-    dirs, files = GetFilesAndDirs(parent.path)
+    dirs, files, videos = GetFilesAndDirs(parent.path)
     fileIndex = get_item_index(item, files) # get the index of the file in the list of files in the directory
     out += "<table width=\"100%\">\n<tr><td width=\"20%\" align=\"top\"><center>"
     if fileIndex > 0:
