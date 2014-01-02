@@ -115,16 +115,16 @@ def get_conf_item(param):
     return value
 
 # local root directory containing the original images (the base directory of the source images)
-#ALBUM_ROOT="/mnt/hddData/photos"
-ALBUM_ROOT="/home/jason/Pictures"
+ALBUM_ROOT="/mnt/hddData/photos"
+#ALBUM_ROOT="/home/jason/Pictures"
 
 # the web directory of the original images relative to the server root (yes, my url contains "httpserver" - long story)
 # eg: http://www.mydomain.org/httpserver/photos-orig/ is the web dir where the original photos are
-#WEB_ORIGINALS_ROOT="/httpserver/photos-orig"
-WEB_ORIGINALS_ROOT="/pics"
+WEB_ORIGINALS_ROOT="/photos"
+#WEB_ORIGINALS_ROOT="/pics"
 
 # base url of this cgi script eg: http://www.mydomain.org/cgi-bin/webalbum is the url to the 
-URL_BASE="/cgi-bin/webalbum"
+URL_BASE="/cgi/webalbum"
 
 # local directory where thumbnails and view sized images get generated (this directory must be visible on the web server)
 PREVIEW_FILE_DIR="/var/www/webalbum"
@@ -418,7 +418,7 @@ def render_dir_page(item):
     
     if len(videos)> 0:
         out += "<br/><b>Video Links</b>\n"
-        out += "<br/><centre><table>\n"
+        out += "<br/><center><table>\n"
         columns = 5
         col = 0
         for f in videos:
