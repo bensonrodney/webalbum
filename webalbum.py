@@ -499,7 +499,7 @@ def get_video_link_with_thumbnail(item):
     except:
         fileOk=False
     out = ""
-    imgPath = item.thumbnail_web if fileOk else ERROR_VIEW
+    imgPath = item.thumbnail_web if fileOk else ERROR_THUMBNAIL
     out += "<br/>"+GetLink(item.web_original, "<img style=\"max-width:95%;border:3px solid black;\" src=\""+\
             imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+item.basename_short+"</img>"+"\n", newTab=True)
     return out
