@@ -63,7 +63,7 @@ here is to explain this webalbum.
          eg: /var/www/webalbum
 
      WEB_PREVIEW_FILE_DIR: this is the same directory as PREVIEW_FILE_DIR but relative
-         to the web root directory
+         to the web root directory/export            192.168.20.0/24(rw,fsid=0,insecure,no_subtree_check,async)
 
      THUMBNAIL_DIR: a pre-existing subdirectory of PREVIEW_FILE_DIR where the thumbnails will
          written to (appended to PREVIEW_FILE_DIR). eg: /thumbnails
@@ -91,11 +91,15 @@ import cgitb
 
 import os, sys, time
 import shlex, subprocess
+from subprocess import STDOUT,PIPE
 import getpass
 import urllib
 import Image
 from ffvideo import VideoStream
 
+fs = cgi.FieldStorage()
+keys = fs.keys()
+searchstr = "" if 'searchstr' not in keys else fs.getvalue('searchstr')
 
 #------ CONFIGURATION SECTION ----------
 # optional config file for the config items below
@@ -151,7 +155,7 @@ class AlbumItem(object):
         return self._path
     def _set_path(self, value):
         if not value.startswith(ALBUM_ROOT) :
-            raise BaseException("AlbumItem(): path not entered with the album root at the beginning")
+            raise BaseException("AlbumItem(): path not entered with the album root at the beginning: %s" % value)
         value = value[len(ALBUM_ROOT):] # remove the ALBUM_ROOT
         while value.startswith("/"):
             value = value[1:]
@@ -307,18 +311,7 @@ def filter_is_valid_video(path):
             return True
     return False
 
-def GetFilesAndDirs(subDir):
-    if subDir.endswith("/"):
-       subDir = subDir[:-1]
-    if subDir.startswith("/"):
-        subDir = subDir[1:]
-    path = ALBUM_ROOT+"/"+subDir
-    if not path.endswith("/") and path!="":
-        path += "/"
-    contents = os.listdir(path)
-    #print contents
-    fullPaths = [path+d for d in contents]
-
+def separate_files(fullPaths):
     dirs = filter(filter_isdir, fullPaths)
     dirItems = [AlbumItem(d) for d in dirs]
     sortedDirs = sorted(dirItems, key=lambda item: item.path)
@@ -333,6 +326,20 @@ def GetFilesAndDirs(subDir):
 
     return sortedDirs, sortedFiles, sortedVideos
 
+def GetFilesAndDirs(subDir):
+    if subDir.endswith("/"):
+       subDir = subDir[:-1]
+    if subDir.startswith("/"):
+        subDir = subDir[1:]
+    path = ALBUM_ROOT+"/"+subDir
+    if not path.endswith("/") and path!="":
+        path += "/"
+    contents = os.listdir(path)
+    #print contents
+    fullPaths = [path+d for d in contents]
+    return separate_files(fullPaths)
+    
+
 def HTML_Header(page_title):
     out = "Content-type: text/html\n\n"
     out += "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
@@ -342,7 +349,9 @@ def HTML_Header(page_title):
     out += "  <title>%s</title>\n" % page_title
     out += get_css()
     out += "</head>\n<body>\n"
-    out += "<h1>Web Album</h1>\n"
+    #out += "<h1>Web Album</h1>\n"
+    out += render_search_form(searchstr)
+    out += "</br>\n"
     return out
 
 def HTML_Footer():
@@ -354,9 +363,7 @@ def HTML_Footer():
 def GetRequestMethod():
     return os.environ['REQUEST_METHOD']
 
-def doPostRequest():
-    fs = cgi.FieldStorage()
-    keys = fs.keys()
+def get_path():
     path = urllib.unquote(fs.getvalue("path") if 'path' in keys else "")
     return path
 
@@ -376,6 +383,16 @@ def GetDirUrls(item, dirs):
 def GetLink(url, linkText, newTab=False):
     target = " target=\"_blank\"" if newTab else ""
     return "<a href=\""+url+"\""+target+">"+linkText+"</a>"
+
+def render_search_form(preload=""):
+    out = "<form method=\"GET\">\n"
+    out += "<h1><table width=\"100%\"><tr align=\"left\">\n"
+    out += "<td>Web Album</td>\n"
+    out += "<td align=\"right\"><input type=\"text\" name=\"searchstr\" value=\"%s\" >" % preload
+    out += "<input type=\"submit\"/ value=\"Search\"></td>\n"
+    out += "</tr></table></h1>\n"
+    out += "</form>\n"
+    return out
 
 def render_parent_prev_next(item):
     tmpitem = AlbumItem(ALBUM_ROOT+"/"+item.parentdir) if item.isfile else item
@@ -403,18 +420,20 @@ def render_parent_prev_next(item):
 
 def GetDirLinksHeading(dirItem):
     out = "<table width=\"100%\" border=\"0\" cellpadding=\"3\" cellspacking=\"3\">\n"
-    out += "<tr><td><b>Directory Links</b></td><td align=\"right\"><b>"+dirItem.basename+"</b></td></tr>\n"
+    #out += "<tr><td><b>Directory Links</b></td><td align=\"right\"><b>"+dirItem.basename+"</b></td></tr>\n"
+    out += "<tr><td><b>Directory Links: "+dirItem.basename+"</b></td></tr>\n"
     out += "</table>\n"
     return out
 
-def render_dir_page(item):
-    dirs, files, videos = GetFilesAndDirs(item.path)
-    out = GetDirLinksHeading(item)
-    dirLinks = render_parent_prev_next(item)
-    out += dirLinks
+def render_dirs_files_videos(dirs,files,videos,item):
+    ppn = render_parent_prev_next(item)
+    out = ppn
 
-    for d in dirs:
-        out += "<br/>"+GetLink(d.url, d.basename)+"\n"
+    if len(dirs) > 0:
+        out += GetDirLinksHeading(item)
+
+    for i in range(len(dirs)):
+        out += ("" if i == 0 else "<br/>")+GetLink(dirs[i].url, dirs[i].basename)+"\n"
     
     if len(videos)> 0:
         out += "<br/><b>Video Links</b>\n"
@@ -446,9 +465,16 @@ def render_dir_page(item):
                 out += "</tr>\n"
         out += "</table></center>\n<br/>\n"
 
-    if len(videos) + len(files) > 15:
-        out += "<br/><br/>\n" + dirLinks + "<br/><br/>\n"
+    if (len(dirs) + len(videos) + len(files) > 15) or \
+       (len(dirs) > 20):
+        out += "<br/><br/>\n" + ppn + "<br/><br/>\n"
 
+    return out
+
+def render_dir_page(item):
+    dirs, files, videos = GetFilesAndDirs(item.path)
+    
+    out = render_dirs_files_videos(dirs,files,videos,item=item)
     return out
 
 def get_file_link_with_thumbnail(item, newTab=False):
@@ -514,9 +540,8 @@ def get_item_index(item, items):
 
 def render_file_page(item):
     parent = AlbumItem(ALBUM_ROOT+"/"+item.parentdir)
-    out = GetDirLinksHeading(parent)
-    dirLinks = render_parent_prev_next(item)
-    out += dirLinks
+    out = render_parent_prev_next(item)
+    out += GetDirLinksHeading(parent)
     out += "<center>\n"
     parent.text = "Back to directory gallery"
     dirs, files, videos = GetFilesAndDirs(parent.path)
@@ -538,14 +563,25 @@ def render_file_page(item):
 def render_error_page(path):
     return ""
 
+def render_search(searchstr, rootItem):
+    cmd = "find %s -iname \"*%s*\"" % (ALBUM_ROOT, searchstr)
+    p = subprocess.Popen(shlex.split(cmd), stdout=PIPE)
+    stdout,stderr = p.communicate()
+    #out += stdout.replace("\n","<br/>")
+    found_objects = sorted([o.strip() for o in stdout.split("\n") if len(o.strip()) > 0])
+    dirs, files, videos = separate_files(found_objects)
+    return render_dirs_files_videos(dirs, files, videos, item=rootItem)
+
 def render_page():
     reqMethod = GetRequestMethod()
     sys.stdout.write(HTML_Header("Photo Gallery"))
     #if reqMethod=="POST":
     #    pass
-    path = doPostRequest()
+    path = get_path()
     item = AlbumItem(ALBUM_ROOT+"/"+path)
-    if item.isdir:
+    if len(searchstr) > 0:
+        page = render_search(searchstr,item)
+    elif item.isdir:
         page = render_dir_page(item)
     elif item.isfile:
         page = render_file_page(item)
