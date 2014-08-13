@@ -100,6 +100,7 @@ from ffvideo import VideoStream
 fs = cgi.FieldStorage()
 keys = fs.keys()
 searchstr = "" if 'searchstr' not in keys else fs.getvalue('searchstr')
+video_search = "" if 'video_search' not in keys else fs.getvalue('video_search')
 
 #------ CONFIGURATION SECTION ----------
 # optional config file for the config items below
@@ -415,6 +416,7 @@ def render_parent_prev_next(item):
         out += "<td class=\"dirs\" width=\"40%\" align=\"center\">"+GetLink(nextDir.url, "Next: "+nextDir.basename)+"</td>\n"
     else :
         out += "<td class=\"dirs\" width=\"40%\" align=\"center\"><font color=\"#AAAAAA\">Next: </font></td>\n"
+    out += "<td class=\"dirs\" width=\"5%\" align=\"center\">"+GetLink(URL_BASE+"?video_search=1", "Videos")+"</td>\n"
     out += "</tr></table>\n"
     return out
 
@@ -516,8 +518,13 @@ def get_video_link_with_thumbnail(item):
     try:
         if not os.path.exists(outfile):
             # make video thumbnail
-            pass
-            pil_image = VideoStream(item.fullpath).get_frame_at_sec(5).image()
+            try:
+                pil_image = VideoStream(item.fullpath).get_frame_at_sec(5).image()
+            except:
+                try:
+                    pil_image = VideoStream(item.fullpath).get_frame_at_sec(0.5).image()
+                except:
+                    pil_image = VideoStream(item.fullpath).get_frame_at_sec(0).image()
             size = 250,250
             pil_image.thumbnail(size)
             pil_image.save(outfile)
@@ -567,7 +574,14 @@ def render_search(searchstr, rootItem):
     cmd = "find %s -iname \"*%s*\"" % (ALBUM_ROOT, searchstr)
     p = subprocess.Popen(shlex.split(cmd), stdout=PIPE)
     stdout,stderr = p.communicate()
-    #out += stdout.replace("\n","<br/>")
+    found_objects = sorted([o.strip() for o in stdout.split("\n") if len(o.strip()) > 0])
+    dirs, files, videos = separate_files(found_objects)
+    return render_dirs_files_videos(dirs, files, videos, item=rootItem)
+
+def render_video_search(rootItem):
+    cmd = "find %s -regextype sed -iregex \".*/.*\(mp4\|avi\)\"" % ALBUM_ROOT
+    p = subprocess.Popen(shlex.split(cmd), stdout=PIPE)
+    stdout,stderr = p.communicate()
     found_objects = sorted([o.strip() for o in stdout.split("\n") if len(o.strip()) > 0])
     dirs, files, videos = separate_files(found_objects)
     return render_dirs_files_videos(dirs, files, videos, item=rootItem)
@@ -581,6 +595,8 @@ def render_page():
     item = AlbumItem(ALBUM_ROOT+"/"+path)
     if len(searchstr) > 0:
         page = render_search(searchstr,item)
+    elif video_search == "1":
+        page = render_video_search(item)
     elif item.isdir:
         page = render_dir_page(item)
     elif item.isfile:
