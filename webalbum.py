@@ -79,6 +79,8 @@ here is to explain this webalbum.
          sized image from the original. eg: ERROR_VIEW=WEB_PREVIEW_FILE_DIR+"/error_view.png"
          The file should preferrably be in WEB_PREVIEW_FILE_DIR
 
+Also make sure to copy the maps-pin.png into the same directory as the error images. 
+
 Python Module Requirements:
     - PIL - Python Imaging Library (http://www.pythonware.com/products/pil/)
     - ffvideo (https://pypi.python.org/pypi/FFVideo)
@@ -334,6 +336,22 @@ class AlbumItem(object):
         return self._gps
     gps = property(_get_gps)
 
+    def _get_haveGps(self):
+        return (self._gps is not None) and \
+               (self._gps[0] is not None) and \
+               (self._gps[1] is not None)
+    haveGps = property(_get_haveGps)
+
+    def createView(self, force=False):
+        viewFile = self.view_local
+        try:
+            if (not os.path.exists(viewFile)) or force:
+                size = 900,900
+                self.im.thumbnail(size)
+                self.im.save(viewFile, "JPEG")
+            return os.path.exists(viewFile)
+        except:
+            return False
 
     def _get_view(self):
         return urllib.quote(self._clean(self._path),'')+".jpg"
@@ -447,11 +465,13 @@ def get_css():
          margin: 12px 0px 0px 0px;
          font-size: 2em;
     }
+    html { height: 100%;  width: 100%; }
     body {
       font-family: "Gill Sans", sans-serif;
       font-size: 12pt;
       margin: 0em;
       background: #dddddd;
+      height: 100%;
       width: 97%;
       vertical-align: middle;
       margin-left: auto;
@@ -482,6 +502,13 @@ def get_css():
             background: -webkit-gradient(linear, left top, left bottom, from(#aaaaaa), to(#dddddd));
             padding: 1px 2px 2px 5px;
             padding-top: 10px;
+    }
+
+    #map-canvas { 
+            height: 600px;
+            width: 900px;
+            margin: 0; 
+            padding: 0;
     }
   </STYLE>
 """
@@ -538,12 +565,35 @@ def GetFilesAndDirs(subDir):
 
 def HTML_Header(page_title):
     out = "Content-type: text/html\n\n"
-    out += "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
+    #out += "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n"
+    out += "<!DOCTYPE html>\n"
     out += "<html>\n<head>\n<meta http-equiv=\"X-UA-Compatible\" content=\"IE=7\">\n"
-    out += "  <link href=\"/css/webalbum.css\" rel=\"stylesheet\" type=\"text/css\"/>\n"
+    #out += "  <link href=\"/css/webalbum.css\" rel=\"stylesheet\" type=\"text/css\"/>\n"
     #out += "  <link href=\"/pixmaps/site.ico\" rel=\"shortcut icon\"/>\n"
     out += "  <title>%s</title>\n" % page_title
     out += get_css()
+    out += """    <script type="text/javascript"
+      src="https://maps.googleapis.com/maps/api/js?key=API_KEY">
+    </script>
+    <script type="text/javascript">
+    var map;
+    function initialize() {
+        map = new google.maps.Map(document.getElementById('map-canvas'),
+            get_map_options());
+        addMarker(get_position());
+    }
+
+    // Function for adding a marker to the page.
+    function addMarker(location) {
+        marker = new google.maps.Marker({
+            position: location,
+            map: map
+        });
+    }
+
+    google.maps.event.addDomListener(window, 'load', initialize);
+    </script>
+"""
     out += "</head>\n<body>\n"
     #out += "<h1>Web Album</h1>\n"
     out += render_search_form(searchstr)
@@ -677,31 +727,26 @@ def render_dir_page(item):
 def get_file_link_with_thumbnail(item, newTab=False):
     thumb_ok = item.createThumbnail()
     exif_data = item.LoadExif()
-    gps = item.gps
 
     out = ""
     imgPath = item.thumbnail_web if thumb_ok else ERROR_THUMBNAIL
+    thumb_error = "" if thumb_ok else "ERROR: "
+    map_link = "<img src=\"/webalbum/maps-pin.png\">" if item.haveGps else ""
     out += "<br/>"+GetLink(item.url, "<img style=\"max-width:95%;border:3px solid black;\" src=\""+\
-            imgPath+"\"><br/>"+("" if thumb_ok else "ERROR: ")+item.basename_short+"</img>"+"\n", newTab=newTab)
+            imgPath+"\"><br/>"+map_link+thumb_error+item.basename_short+"</img>"+"\n", newTab=newTab)
     #out += "<p>%s</p>\n" % str(",".join(exif_data.keys()))
-    out += "<p>%s</p>\n" % str(gps)
+    #out += "<p>%s</p>\n" % str(gps)
     return out
 
 def get_file_link_with_view(item, newTab=False):
-    outfile = item.view_local
-    try:
-        if not os.path.exists(outfile):
-            size = 900,900
-            im = Image.open(item.fullpath)
-            im.thumbnail(size)
-            im.save(outfile, "JPEG")
-        fileOk=True
-    except:
-        fileOk=False
+    view_ok = item.createView()
+    exif_data = item.LoadExif()
+
+    view_error = "" if view_ok else "ERROR: "
     out = ""
-    imgPath = item.view_web if fileOk else ERROR_VIEW
+    imgPath = item.view_web if view_ok else ERROR_VIEW
     out += "<br/>"+GetLink(item.web_original, "<img style=\"max-width:95%;border:3px solid black;\" src=\""+\
-            imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+item.basename+"</img>"+"\n", newTab=newTab)
+            imgPath+"\"><br/>"+("" if view_ok else "ERROR: ")+item.basename+"</img>"+"\n", newTab=newTab)
     return out
 
 def get_video_link_with_thumbnail(item):
@@ -754,8 +799,29 @@ def render_file_page(item):
     out += "</center></td>\n<td width=\"20%\" align=\"top\"><center>"
     if fileIndex < len(files) - 1:
         out += get_file_link_with_thumbnail(files[fileIndex+1])
-    out += "</center></td>\n</tr>\n</table>\n"
+    out += "</center></td>\n</tr>\n"
+    out += "</table>\n"
+    if item.haveGps:
+        out += "<div id=\"map-canvas\"></div>\n"
+        out += "<script type=\"text/javascript\">\n"
+        out += "function place_marker() {\n"
+        out += "    Marker = new google.maps.LatLng(%s,%s);\n" % (item.gps[0], item.gps[1])
+        out += "    addMarker(Marker);\n"
+        out += "}\n"
+        out += "function get_map_options() {\n"
+        out += "    var mapOptions = {\n"
+        out += "        center: { lat: %s, lng: %s},\n" % (item.gps[0], item.gps[1])
+        out += "        zoom: 10\n"
+        out += "    };\n"
+        out += "    return mapOptions;\n"
+        out += "}\n"
+        out += "function get_position() {\n"
+        out += "    position = new google.maps.LatLng(%s,%s);\n" % (item.gps[0], item.gps[1])
+        out += "    return position;\n"
+        out += "}\n"
+        out += "</script>\n"
     out+="</center>\n"
+
     return out
 
 def render_error_page(path):
