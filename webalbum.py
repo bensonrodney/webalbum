@@ -2,49 +2,49 @@
 
 """
 The idea behind this web album is to reduce the effort required to keep web ablum up to date with
-source images that make up the web album. 
+source images that make up the web album.
 
-For me, every time I took some new photos and copied them to my web server I would have to 
+For me, every time I took some new photos and copied them to my web server I would have to
 run some web album generator which would take forever, mostly due to my 60,000+ photos in my
 personal digital photo album. Having so many photos is the reason I use a web album to browse
-through them. 
+through them.
 
-This cgi based web album is designed to generate each directory view or image view page as it 
+This cgi based web album is designed to generate each directory view or image view page as it
 is requested. This means there is no maintenance required when there are more images added to
-the source image collection. 
+the source image collection.
 
 Firstly, I hacked this together fairly quickly and over time added some bits and pieces to make
 viewing easier (like the previous/next directory links at the top AND the bottom of directory
-view pages). 
+view pages).
 
 Because I used minimal time to get this up and running, I've made no effort to make this work
-on platforms other than Ubuntu. It may work on other platforms but I wouldn't bank on it. 
+on platforms other than Ubuntu. It may work on other platforms but I wouldn't bank on it.
 
 There are some things that need to be configured. There are a couple of ways:
   - use a configuration file (config parameter retrieval function is included)
   - just hard code the config items into this file and leave it at that
-Either of these two config methods would allow you to run more than one web album, each 
-pointing to different image collections. 
+Either of these two config methods would allow you to run more than one web album, each
+pointing to different image collections.
 
-I'm using this webalbum on Ubuntu with Apache as the web server. Below is how I configured it. 
+I'm using this webalbum on Ubuntu with Apache as the web server. Below is how I configured it.
 You might need to fill in the blanks for some points that I've glossed over too quickly, the point
 here is to explain this webalbum.
 
-1. Set up your web server and enable cgi - a good guide for doing this with Apache 
+1. Set up your web server and enable cgi - a good guide for doing this with Apache
      is here http://httpd.apache.org/docs/2.2/howto/cgi.html
 
 2. Make sure the original images are can be viewed on your web server under some directory
-     on webserver, eg http://www.mydomain.org/photos/originals/somedir/some_image.jpg 
+     on webserver, eg http://www.mydomain.org/photos/originals/somedir/some_image.jpg
      In this example /photos/originals/ is the root directory of the original images on
      the webserver
 
 3. Set config items in the code below:
 
-     ALBUM_ROOT: this is the local path to the original photos. This is the actual path, not a 
-         path relative to the web server's root, eg /mnt/some_mount_point/image_store 
-         In this example, along with the example in point 2, 
+     ALBUM_ROOT: this is the local path to the original photos. This is the actual path, not a
+         path relative to the web server's root, eg /mnt/some_mount_point/image_store
+         In this example, along with the example in point 2,
              /mnt/some_mount_point/image_store/somedir/some_image.jpg
-                 and 
+                 and
              http://www.mydomain.org/photos/originals/somedir/some_image.jpg
          point to the same file, one locally, one via the web server
 
@@ -57,7 +57,7 @@ here is to explain this webalbum.
              /cgi-bin/webalbum.py
          meaning the full url might be http://www.mydomain.org/cgi-bin/webalbum.py
 
-     PREVIEW_FILE_DIR: this is the local directory where the generated thumbnails and 
+     PREVIEW_FILE_DIR: this is the local directory where the generated thumbnails and
          view sized images are to be written to be displayed by the web server. This needs
          to be a directory whose contents can be accessed via the web server.
          eg: /var/www/webalbum
@@ -70,16 +70,16 @@ here is to explain this webalbum.
 
      VIEW_DIR: a pre-existing subdirectory of PREVIEW_FILE_DIR where the view sized images wiill
          be written to (appended to PREVIEW_FILE_DIR). eg: /view
-     
-     ERROR_THUMBNAIL: thumbnail image to be displayed when there is an error generating the 
+
+     ERROR_THUMBNAIL: thumbnail image to be displayed when there is an error generating the
          thumnbnail from the original image. eg: WEB_PREVIEW_FILE_DIR+"/error_thumbnail.png"
          The file should preferrably be in WEB_PREVIEW_FILE_DIR
-         
+
      ERROR_VIEW: view sized image to be displayed when there is an error generating the view
          sized image from the original. eg: ERROR_VIEW=WEB_PREVIEW_FILE_DIR+"/error_view.png"
          The file should preferrably be in WEB_PREVIEW_FILE_DIR
 
-Python Module Requirements: 
+Python Module Requirements:
     - PIL - Python Imaging Library (http://www.pythonware.com/products/pil/)
     - ffvideo (https://pypi.python.org/pypi/FFVideo)
 
@@ -88,14 +88,16 @@ Python Module Requirements:
 import cgi
 import cgitb
 
-
-import os, sys, time
+import traceback
+import os, sys, time, pickle
 import shlex, subprocess
 from subprocess import STDOUT,PIPE
 import getpass
 import urllib
 import Image
 from ffvideo import VideoStream
+
+from PIL.ExifTags import TAGS, GPSTAGS
 
 fs = cgi.FieldStorage()
 keys = fs.keys()
@@ -128,20 +130,20 @@ ALBUM_ROOT="/mnt/hddData/photos"
 WEB_ORIGINALS_ROOT="/photos"
 #WEB_ORIGINALS_ROOT="/pics"
 
-# base url of this cgi script eg: http://www.mydomain.org/cgi-bin/webalbum is the url to the 
+# base url of this cgi script eg: http://www.mydomain.org/cgi-bin/webalbum is the url to the
 URL_BASE="/cgi/webalbum"
 
 # local directory where thumbnails and view sized images get generated (this directory must be visible on the web server)
 PREVIEW_FILE_DIR="/var/www/webalbum"
 
-# same as PREVIEW_FILE_DIR except relative to the web root dir 
-WEB_PREVIEW_FILE_DIR="/webalbum" 
+# same as PREVIEW_FILE_DIR except relative to the web root dir
+WEB_PREVIEW_FILE_DIR="/webalbum"
 
 # directory where thumbnails get generated (relative to both local and web dirs)
 THUMBNAIL_DIR="/thumbnails"
 
 # directory where images for viewing get generated (relative to both local and web dirs)
-VIEW_DIR="/view" 
+VIEW_DIR="/view"
 
 # path to error images (thumbnail and view sizes) relative to PREVIEW_FILE_DIR
 ERROR_THUMBNAIL=WEB_PREVIEW_FILE_DIR+"/error_thumbnail.png"
@@ -151,7 +153,10 @@ class AlbumItem(object):
     def __init__(self, path): # path is the full path of the dir or file on the webserver
         self._set_path(path)
         self._text = self._get_url()
-        
+        self._im = None
+        self._exif_data = None
+        self._gps = None
+
     def _get_path(self):
         return self._path
     def _set_path(self, value):
@@ -164,29 +169,29 @@ class AlbumItem(object):
             value = value[:-1]
         self._path = value
     path = property(_get_path)
-    
+
     def _get_full_path(self):
         return ALBUM_ROOT+"/"+self._path
     fullpath = property(_get_full_path)
-    
+
     def _get_url(self):
         # item is a dir or a file relative to the base dir, no slash at the start
         return URL_BASE + "" if len(self._path) == 0 else "?path="+escape_path(self._path)
     url = property(_get_url)
-    
+
     def _get_basename(self):
         return os.path.basename(self._path)
     basename = property(_get_basename)
-    
+
     def _get_basename_short(self):
         bn = os.path.basename(self._path)
         return bn if len(bn) < 21 else bn[:6]+"..."+bn[-8:]
-    basename_short = property(_get_basename_short)    
-    
+    basename_short = property(_get_basename_short)
+
     def _get_parentdir(self):
         return os.path.dirname(self._path)
     parentdir = property(_get_parentdir)
-    
+
     def _get_isdir(self):
         return os.path.isdir(self.fullpath)
     isdir = property(_get_isdir)
@@ -194,51 +199,241 @@ class AlbumItem(object):
     def _get_isfile(self):
         return os.path.isfile(self.fullpath)
     isfile = property(_get_isfile)
-    
+
     def _get_text(self):
         return self._text
     def _set_text(self, value):
         self._text = value.strip()
     text = property(_get_text, _set_text)
-    
+
     def _clean(self, string):
         chars = '/ ~!@#$%^&*()+={}[]|\\:;\'?<>,'
         cleaned = string
         for i in range(len(chars)):
             cleaned = cleaned.replace(chars[i], "%d" % ord(chars[i]))
         return cleaned
-    
+
+    def _get_im(self):
+        if self._im is None:
+            self._im = Image.open(self.fullpath)
+        return self._im
+    im = property(_get_im)
+
     def _get_thumbnail(self):
         return urllib.quote(self._clean(self._path),'')+".jpg"
     thumbnail = property(_get_thumbnail)
-    
+
     def _get_thumbnail_local(self):
         # returns full local file path
         return PREVIEW_FILE_DIR+THUMBNAIL_DIR+"/"+self._get_thumbnail()
     thumbnail_local = property(_get_thumbnail_local)
-    
+
     def _get_thumbnail_web(self):
         # returns the web server relative path to the file
         return WEB_PREVIEW_FILE_DIR+THUMBNAIL_DIR+"/"+self._get_thumbnail()
     thumbnail_web = property(_get_thumbnail_web)
 
+    def createThumbnail(self, force=False):
+        thumbfile = self.thumbnail_local
+        try:
+            if (not os.path.exists(thumbfile)) or force:
+                size = 250,250
+                self.im.thumbnail(size)
+                self.im.save(thumbfile, "JPEG")
+            return os.path.exists(thumbfile)
+        except:
+            return False
+
+    def _get_exif_data(self):
+        if self._exif_data is None:
+            self._exif_data = get_exif_data(self.im)
+        return self._exif_data
+    exif_data = property(_get_exif_data)
+
+    def LoadExif(self):
+        if not self.exif_file_exists:
+            self.createExifFile()
+        else:
+            self.load_exif_data_from_file()
+        return self.exif_data
+
+    def load_exif_data_from_file(self):
+        # assume file exists
+        try:
+            ef = open(self.exif_file_local)
+            self._exif_data = pickle.load(ef)
+            ef.close()
+            self.load_gps_from_file()
+            return self._exif_data
+        except:
+            return None
+
+    def _get_exif_file(self):
+        return urllib.quote(self._clean(self._path),'')+".exif"
+    exif_file = property(_get_exif_file)
+
+    def _get_exif_file_local(self):
+        # returns the image exif data file
+        return PREVIEW_FILE_DIR+THUMBNAIL_DIR+"/"+self._get_exif_file()
+    exif_file_local = property(_get_exif_file_local)
+
+    def createExifFile(self, force=False):
+        exiffile = self.exif_file_local
+        try:
+            if (not os.path.exists(exiffile)) or force:
+                ef = open(exiffile, 'wb')
+                pickle.dump(self.exif_data, ef)
+                ef.close()
+                self.createGpsFile(force=force)
+            return os.path.exists(exiffile)
+        except:
+            return False
+
+    def _get_exif_file_exists(self):
+        return os.path.exists(self.exif_file_local)
+    exif_file_exists = property(_get_exif_file_exists)
+
+    def load_gps_from_file(self):
+        # assume file exists
+        try:
+            gf = open(self.gps_file_local)
+            self._gps = pickle.load(gf)
+            gf.close()
+            return self._gps
+        except:
+            return None
+
+    def _get_gps_file(self):
+        return urllib.quote(self._clean(self._path),'')+".gps"
+    exif_file = property(_get_exif_file)
+
+    def _get_gps_file_local(self):
+        # returns the image exif data file
+        return PREVIEW_FILE_DIR+THUMBNAIL_DIR+"/"+self._get_gps_file()
+    gps_file_local = property(_get_gps_file_local)
+
+    def createGpsFile(self, force=False):
+        gpsfile = self.gps_file_local
+        try:
+            if (not os.path.exists(gpsfile)) or force:
+                self._gps = get_lat_lon(self.exif_data)
+                if self._gps[0] is None or self._gps[1] is None:
+                    return False
+                gf = open(gpsfile, 'wb')
+                pickle.dump(self._gps, gf)
+                gf.close()
+            return os.path.exists(gpsfile)
+        except:
+            return False
+
+    def _get_gps_file_exists(self):
+        return os.path.exists(self.gps_file_local)
+    gps_file_exists = property(_get_gps_file_exists)
+
+    def _get_gps(self):
+        return self._gps
+    gps = property(_get_gps)
+
+
     def _get_view(self):
         return urllib.quote(self._clean(self._path),'')+".jpg"
     view = property(_get_view)
-    
+
     def _get_view_local(self):
         # returns full local file path
         return PREVIEW_FILE_DIR+VIEW_DIR+"/"+self._get_view()
     view_local = property(_get_view_local)
-    
+
     def _get_view_web(self):
         # returns the web server relative path to the file
         return WEB_PREVIEW_FILE_DIR+VIEW_DIR+"/"+self._get_view()
     view_web = property(_get_view_web)
-    
+
     def _get_web_original(self):
         return WEB_ORIGINALS_ROOT+"/"+self._path
     web_original = property(_get_web_original)
+
+######## EXIF and GPS info gathering
+def get_exif_data(image):
+    """Returns a dictionary from the exif data of an PIL Image item. Also converts the GPS Tags"""
+    exif_data = {}
+    info = image._getexif()
+    if info:
+        for tag, value in info.items():
+            decoded = TAGS.get(tag, tag)
+            if decoded == "GPSInfo":
+                gps_data = {}
+                for t in value:
+                    sub_decoded = GPSTAGS.get(t, t)
+                    gps_data[sub_decoded] = value[t]
+
+                exif_data[decoded] = gps_data
+            else:
+                exif_data[decoded] = value
+
+    return exif_data
+
+def _get_if_exist(data, key):
+    if key in data:
+        return data[key]
+
+    return None
+
+def _convert_to_degress(value):
+    """Helper function to convert the GPS coordinates stored in the EXIF to degress in float format"""
+    d0 = value[0][0]
+    d1 = value[0][1]
+    d = float(d0) / float(d1)
+
+    m0 = value[1][0]
+    m1 = value[1][1]
+    m = float(m0) / float(m1)
+
+    s0 = value[2][0]
+    s1 = value[2][1]
+    s = float(s0) / float(s1)
+
+    return d + (m / 60.0) + (s / 3600.0)
+
+def get_lat_lon(exif_data):
+    """Returns the latitude and longitude, if available, from the provided exif_data (obtained through get_exif_data above)"""
+    lat = None
+    lon = None
+
+    if "GPSInfo" in exif_data:
+        gps_info = exif_data["GPSInfo"]
+
+        gps_latitude = _get_if_exist(gps_info, "GPSLatitude")
+        gps_latitude_ref = _get_if_exist(gps_info, 'GPSLatitudeRef')
+        gps_longitude = _get_if_exist(gps_info, 'GPSLongitude')
+        gps_longitude_ref = _get_if_exist(gps_info, 'GPSLongitudeRef')
+
+        if gps_latitude and gps_latitude_ref and gps_longitude and gps_longitude_ref:
+            lat = _convert_to_degress(gps_latitude)
+            if gps_latitude_ref != "N":
+                lat = - lat
+
+            lon = _convert_to_degress(gps_longitude)
+            if gps_longitude_ref != "E":
+                lon = - lon
+
+    return lat, lon
+
+
+################
+# Example ######
+################
+"""
+if __name__ == "__main__":
+    import sys
+    # image = Image.open("/mnt/hddData/photos/2014/2014_02_06-Warialda/20140206_140808.jpg")
+    image = Image.open(sys.argv[1])
+    sys.stdout.write(sys.argv[1]+" ")
+    exif_data = get_exif_data(image)
+    exif_data = get_exif_data(image)
+    print get_lat_lon(exif_data)
+"""
+####################################
 
 def get_css():
     return """<STYLE type="text/css">
@@ -252,10 +447,10 @@ def get_css():
          margin: 12px 0px 0px 0px;
          font-size: 2em;
     }
-    body { 
+    body {
       font-family: "Gill Sans", sans-serif;
       font-size: 12pt;
-      margin: 0em; 
+      margin: 0em;
       background: #dddddd;
       width: 97%;
       vertical-align: middle;
@@ -320,7 +515,7 @@ def separate_files(fullPaths):
     files = filter(filter_is_valid_file, fullPaths)
     fileItems = [AlbumItem(f) for f in files]
     sortedFiles = sorted(fileItems, key=lambda item: item.path)
-    
+
     videos = filter(filter_is_valid_video, fullPaths)
     videoItems = [AlbumItem(f) for f in videos]
     sortedVideos = sorted(videoItems, key=lambda item: item.path)
@@ -339,7 +534,7 @@ def GetFilesAndDirs(subDir):
     #print contents
     fullPaths = [path+d for d in contents]
     return separate_files(fullPaths)
-    
+
 
 def HTML_Header(page_title):
     out = "Content-type: text/html\n\n"
@@ -436,7 +631,7 @@ def render_dirs_files_videos(dirs,files,videos,item):
 
     for i in range(len(dirs)):
         out += ("" if i == 0 else "<br/>")+GetLink(dirs[i].url, dirs[i].basename)+"\n"
-    
+
     if len(videos)> 0:
         out += "<br/><b>Video Links</b>\n"
         out += "<br/><center><table>\n"
@@ -475,25 +670,21 @@ def render_dirs_files_videos(dirs,files,videos,item):
 
 def render_dir_page(item):
     dirs, files, videos = GetFilesAndDirs(item.path)
-    
+
     out = render_dirs_files_videos(dirs,files,videos,item=item)
     return out
 
 def get_file_link_with_thumbnail(item, newTab=False):
-    outfile = item.thumbnail_local
-    try:
-        if not os.path.exists(outfile):
-            size = 250,250
-            im = Image.open(item.fullpath)
-            im.thumbnail(size)
-            im.save(outfile, "JPEG")
-        fileOk=True
-    except:
-        fileOk=False
+    thumb_ok = item.createThumbnail()
+    exif_data = item.LoadExif()
+    gps = item.gps
+
     out = ""
-    imgPath = item.thumbnail_web if fileOk else ERROR_THUMBNAIL
+    imgPath = item.thumbnail_web if thumb_ok else ERROR_THUMBNAIL
     out += "<br/>"+GetLink(item.url, "<img style=\"max-width:95%;border:3px solid black;\" src=\""+\
-            imgPath+"\"><br/>"+("" if fileOk else "ERROR: ")+item.basename_short+"</img>"+"\n", newTab=newTab)
+            imgPath+"\"><br/>"+("" if thumb_ok else "ERROR: ")+item.basename_short+"</img>"+"\n", newTab=newTab)
+    #out += "<p>%s</p>\n" % str(",".join(exif_data.keys()))
+    out += "<p>%s</p>\n" % str(gps)
     return out
 
 def get_file_link_with_view(item, newTab=False):
@@ -604,11 +795,11 @@ def render_page():
     else:
         page = render_error_page(item)
     sys.stdout.write(page)
-    
+
     sys.stdout.write(HTML_Footer())
 
 
 if __name__ == '__main__':
     cgitb.enable() # enable error info in the webpage
     render_page()
-    
+
