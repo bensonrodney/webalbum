@@ -3,6 +3,7 @@
 src_dir="/mnt/data/photos"
 data_dir="/mnt/data/webalbum_data"
 tcp_port="80"
+auto_restart="--restart always"
 
 function usage() {
     cat << EOF
@@ -42,6 +43,9 @@ while getopts "hs:d:p:" o; do
         p)
             tcp_port=${OPTARG}
             ;;
+        n)
+            auto_restart=""
+            ;;
         *)
             echo -e "Unknown option!\n\n"
             usage 1
@@ -72,7 +76,8 @@ if [[ -z ${data_dir// } ]] ; then
     usage 1
 fi
 
-docker run --rm -p ${tcp_port}:80 \
+docker run ${auto_restart} \ 
+    --rm -p ${tcp_port}:80 \
 	-v $(pwd)/config:/etc/webalbum:ro \
 	-v ${src_dir}:/mnt/originalphotos:ro \
 	-v ${data_dir}:/var/www/webalbum \
