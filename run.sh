@@ -46,7 +46,7 @@ while getopts "hs:d:p:n" o; do
             tcp_port=${OPTARG}
             ;;
         n)
-            auto_restart=""
+            auto_restart="--rm"
             ;;
         *)
             echo -e "Unknown option!\n\n"
@@ -79,7 +79,7 @@ if [[ -z ${data_dir// } ]] ; then
 fi
 
 docker run ${auto_restart} \
-    --rm -p ${tcp_port}:80 \
+    -p ${tcp_port}:80 \
 	-v $(pwd)/config:/etc/webalbum:ro \
 	-v ${src_dir}:/mnt/originalphotos:ro \
 	-v ${data_dir}:/var/www/webalbum \
