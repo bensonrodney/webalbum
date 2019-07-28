@@ -78,7 +78,7 @@ if [[ -z ${data_dir// } ]] ; then
     usage 1
 fi
 
-docker run ${auto_restart} \ 
+docker run ${auto_restart} \
     --rm -p ${tcp_port}:80 \
 	-v $(pwd)/config:/etc/webalbum:ro \
 	-v ${src_dir}:/mnt/originalphotos:ro \
