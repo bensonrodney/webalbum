@@ -16,6 +16,12 @@ For a quick start run the following commands:
         DATA_DIR is a read/write directory used for caching thumbnails and view-sized
             images.
 
+There's also a script called photocopy.py which can be used to take many unorganised photos
+and videos (with the appropriate file name convention, such as those created by Samsung
+phones) into organised directories in your original source album. The directory structure
+used is $ALBUM_ROOT/YYYY/YYYY-mm-dd where YYYY is the year, mm is the month and dd is the
+day of the month.
+
 This cgi based web album which dynamically creates it's pages as you view it - no maintenance when
 source images change
 
