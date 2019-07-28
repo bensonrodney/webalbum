@@ -1,7 +1,22 @@
 webalbum
 ========
 
-cgi based web album which dynamically creates it's pages as you view it - no maintenance when
+Dynamic web based photo album served inside a docker container for easy deployment.
+
+For a quick start run the following commands:
+./build.sh
+./run.sh -p TCP_PORT -s PHOTO_SOURCE_DIRECTORY -d DATA_DIR
+
+    where:
+        TCP_PORT is the http port to serve the album on (default is 80) 
+
+        PHOTO_SOURCE_DIRECTORY is the directory containing all the photos and videos (can
+            contain subfolders, in fact if your ablum is large enough it should ;) )
+
+        DATA_DIR is a read/write directory used for caching thumbnails and view-sized
+            images.
+
+This cgi based web album which dynamically creates it's pages as you view it - no maintenance when
 source images change
 
 The idea behind this web album is to reduce the effort required to keep web ablum up to date with
