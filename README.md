@@ -4,17 +4,15 @@ webalbum
 Dynamic web based photo album served inside a docker container for easy deployment.
 
 For a quick start run the following commands:
+```
 ./build.sh
 ./run.sh -p TCP_PORT -s PHOTO_SOURCE_DIRECTORY -d DATA_DIR
+```
+where:
+ - TCP_PORT is the http port to serve the album on (default is 80) 
+ - PHOTO_SOURCE_DIRECTORY is the directory containing all the photos and videos (can contain subfolders, in fact if your ablum is large enough it should ;) )
+ - DATA_DIR is a read/write directory used for caching thumbnails and view-sized images.
 
-    where:
-        TCP_PORT is the http port to serve the album on (default is 80) 
-
-        PHOTO_SOURCE_DIRECTORY is the directory containing all the photos and videos (can
-            contain subfolders, in fact if your ablum is large enough it should ;) )
-
-        DATA_DIR is a read/write directory used for caching thumbnails and view-sized
-            images.
 
 There's also a script called photocopy.py which can be used to take many unorganised photos
 and videos (with the appropriate file name convention, such as those created by Samsung
