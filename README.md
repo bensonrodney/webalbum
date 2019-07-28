@@ -3,8 +3,13 @@ webalbum
 
 Dynamic web based photo album served inside a docker container for easy deployment.
 
-For a quick start run the following commands:
+For a quick start run the following commands in the Ubuntu shell (lines starting with `#` are just comments):
 ```
+# install docker
+sudo apt-get install docker.io
+# add your user to the 'docker' group
+sudo usermod -aG docker $USER
+# you should log out and back in at this point for the group membership changes to take effect
 ./build.sh
 ./run.sh -p TCP_PORT -s PHOTO_SOURCE_DIRECTORY -d DATA_DIR
 ```
