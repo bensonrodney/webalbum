@@ -9,17 +9,19 @@ function usage() {
     cat << EOF
 
 Usage:
-    ${0} [-s PHOTO_SOURCE_DIR] [-d DATA_DIR] [-p TCP_PORT]
+    ${0} [-s PHOTO_SOURCE_DIR] [-d DATA_DIR] [-p TCP_PORT] [-n]
 
     where:
-        PHOTO_SOURCE_DIR specifies the source directory containing the
+        -s PHOTO_SOURCE_DIR : specifies the source directory containing the
             source images and videos (default is ${src_dir}).
 
-        DATA_DIR specifies the cache directory of thumbnails, medium sized
+        -d DATA_DIR : specifies the cache directory of thumbnails, medium sized
             images and geotag files (default is ${data_dir}).
 
-        TCP_PORT the port used to serve the HTTP web album (default
+        -p TCP_PORT : the port used to serve the HTTP web album (default
             is ${tcp_port}).
+
+        -n : turn off auto restart
 
 EOF
     if [[ -z ${1// } ]] ; then
@@ -29,7 +31,7 @@ EOF
     fi
 }
 
-while getopts "hs:d:p:" o; do
+while getopts "hs:d:p:n" o; do
     case "${o}" in
         h)
             usage 0
