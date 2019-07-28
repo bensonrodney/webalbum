@@ -1,0 +1,8 @@
+#!/bin/bash
+
+cat <<EOF
+Content-type: text/html
+
+<html><h1>Hello - Test Page</h1></html>
+<p>Basic test page to check that non-complex cgi is working.</p>
+EOF

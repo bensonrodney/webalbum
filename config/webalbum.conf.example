@@ -1,0 +1,6 @@
+[webalbum]
+
+# GOOGLE MAPS API key - you need to obtain one of these
+# and specify it here.
+GMAPS_API_KEY = YOUR_API_KEY_HERE 
+
