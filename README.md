@@ -11,6 +11,10 @@ sudo apt-get install docker.io
 sudo usermod -aG docker $USER
 # you should log out and back in at this point for the group membership changes to take effect
 ./build.sh
+cp ./config/webalbum.conf.example ./config/webalbum.conf
+# you should now edit the new file ./config/webalbum.conf to contain your
+# Google Maps API key (you'll have to google how to obtain one as the instructions
+# change over time)
 ./run.sh -p TCP_PORT -s PHOTO_SOURCE_DIRECTORY -d DATA_DIR
 ```
 where:
