@@ -20,13 +20,16 @@ cp ./config/webalbum.conf.example ./config/webalbum.conf
 # Google Maps API key (you'll have to google how to obtain one as the instructions
 # change over time)
 
+# if you haven't already created a data directory (or cache dir, used for thumbnails etc),
+mkdir -p /path/to/your/new/data_dir
+
 # start up a new container
 ./run.sh -p TCP_PORT -s PHOTO_SOURCE_DIRECTORY -d DATA_DIR
 ```
 where:
  - TCP_PORT is the http port to serve the album on (default is 80) 
- - PHOTO_SOURCE_DIRECTORY is the directory containing all the photos and videos (can contain subfolders, in fact if your ablum is large enough it should ;) )
- - DATA_DIR is a read/write directory used for caching thumbnails and view-sized images.
+ - PHOTO_SOURCE_DIRECTORY is the absolute path to the directory containing all the photos and videos (can contain subfolders, in fact if your ablum is large enough it should ;) )
+ - DATA_DIR is the absolute path to the read/write directory used for caching thumbnails and view-sized images.
 
 
 There's also a script called photocopy.py which can be used to take many unorganised photos
