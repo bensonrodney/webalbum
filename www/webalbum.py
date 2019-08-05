@@ -618,7 +618,7 @@ def filter_is_valid_video(path):
     if not os.path.isfile(path):
         return False
     basename = os.path.basename(path)
-    for ext in ['.avi', '.mp4', '.mov']:
+    for ext in ['.avi', '.mp4', '.m4v', '.mov']:
         if basename.lower().endswith(ext):
             return True
     return False
