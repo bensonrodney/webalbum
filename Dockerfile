@@ -22,6 +22,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends
     nginx uwsgi \
     vim
 
+RUN pip install --no-cache-dir setuptools
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --upgrade FFVideo-0.0.13.tar.gz
 

@@ -1,0 +1,11 @@
+version: "3.6"
+services:
+  webalbum:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./config:/etc/webalbum:ro
+      - /mnt/hddData/photos:/mnt/originalphotos:ro
+      - /mnt/webalbum_data:/var/www/webalbum
+    restart: always

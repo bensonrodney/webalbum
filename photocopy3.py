@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 # photocopy.py - Jason Milen, June 2012
 # The pupose of this python script is to copy photos and videos directly off Compact Flash
@@ -24,9 +24,32 @@ import traceback
 from PIL import Image
 from PIL.ExifTags import TAGS
 
+# used for hashing files
+BLOCK_SIZE = 65536  # The size of each read from the file
+
 
 def FormatDate(day, month, year):
     return str(year) + '_' + str(month) + '_' + str(day)
+
+
+def get_hash(_file):
+    """
+    Return the sha256sum of the specified file in hex-string format.
+    """
+    file_hash = hashlib.sha256()  # Create the hash object, can use something other than `.sha256()` if you wish
+    with open(str(_file), 'rb') as f:  # Open the file to read it's bytes
+        fb = f.read(BLOCK_SIZE)  # Read from the file. Take in the amount declared above
+        while len(fb) > 0:  # While there is still data being read from the file
+            file_hash.update(fb)  # Update the hash
+            fb = f.read(BLOCK_SIZE)  # Read the next block from the file
+    return file_hash.hexdigest()  # returns the familiar hex string format
+
+
+def rename_destfile(path):
+    if not isinstance(path, Path):
+        path = Path(path)
+    suffix = path.suffix
+    return "{}-{:03d}{}".format(str(path)[:-len(suffix)], randint(0,1000), suffix)
 
 
 # get embedded image data
@@ -40,37 +63,41 @@ def get_exif_image(filepath):
             ret[decoded] = value
         return ret
     except:
-        print "error retrieving exif data from %s " % filepath
+        print(f"error retrieving exif data from {filepath}")
         return None
+
 
 def get_date_from_filename(filepath):
     """If the filename is of the format YYYYMMDD_hhmmss
     """
-    print "debug: %s" % filepath
+    print(f"debug: {filepath}")
     fname = os.path.basename(filepath)
-    print "debug: %s" % fname
+    print(f"debug: {fname}")
     date = fname.split("_")[0]
     if len(date) != 8:
-        print "debug: %s" % date
-        print "debug: date len != 8"
+        print(f"debug: {date}")
+        print("debug: date len != 8")
         return None
     try:
-        int(date) # will raise an exception if not all digits
+        int(date)  # will raise an exception if not all digits
         if date[0:2] != '20':
             return None
-        dateStr = "%s %s %s" % (date[0:4],date[4:6],date[6:8])
+        dateStr = "%s %s %s" % (date[0:4], date[4:6], date[6:8])
         retval = time.strptime(dateStr, "%Y %m %d")
         return retval
     except:
         traceback.print_exc()
         return None
 
+
 def get_file_date(filepath):
     creationTime = time.localtime(os.path.getctime(filepath))
     return creationTime
 
+
 def MakeTimeFromDate(day, month, year):
     return time.localtime(time.mktime((int(year), int(month), int(day), 12, 0, 0, 0, 0, 0)))
+
 
 # Get all the subdirectories of the rootdir
 def GetDirs(rootdir):
@@ -78,6 +105,7 @@ def GetDirs(rootdir):
     for (path, dirs, files) in os.walk(rootdir):
         paths.append(path)
     return paths
+
 
 # get all the files within and in the subdirs of rootdir. Files are returned with the path
 def GetFiles(rootdir):
@@ -87,9 +115,10 @@ def GetFiles(rootdir):
             # this double os.sep replace is needed because linux and windows don't behave the same
             # with the os.sep at the end of the path
             filePath = (path + os.sep + f).replace(os.sep + os.sep, os.sep)
-            if os.path.isfile(filePath): # just a double check
+            if os.path.isfile(filePath):  # just a double check
                 fullFileList.append(filePath)
     return fullFileList
+
 
 def PathWithSeparator(path):
     newPath = path.strip()
@@ -97,11 +126,13 @@ def PathWithSeparator(path):
         newPath = newPath + os.sep
     return newPath
 
+
 def PathWitoutSeparator(path):
     newPath = path.strip()
     if newPath[-1] == os.sep:
         newPath = newPath[:-1]
     return newPath
+
 
 # File class is used to self determine the file date but the date will come from the EXIF
 # data in a JPG if the data can be extracted.
@@ -109,8 +140,8 @@ class File:
     def __init__(self, imageFilePath):
         self.imageFilePath = imageFilePath
         self.exif = get_exif_image(imageFilePath)
-        #print "self.exif\n", self.exif
-        if self.exif != None:
+        # print("self.exif\n", self.exif)
+        if self.exif is not None:
             try:
                 self.dateExif = self.exif['DateTimeOriginal']
             except:
@@ -120,7 +151,7 @@ class File:
         self.year = self.dateStr[:4]
 
     def GetDate(self):
-        if self.exif == None or self.dateExif == None:
+        if self.exif is None or self.dateExif is None:
             # try to get the date from the file name
             self.date = get_date_from_filename(self.imageFilePath)
             if self.date is None:
@@ -132,11 +163,11 @@ class File:
             # then handle that case
             if len(tmpDate) < 3:
                 tmpDate = tmpDate[0].split("-")
-            print tmpDate
+            print(tmpDate)
             self.date = MakeTimeFromDate(tmpDate[2], tmpDate[1], tmpDate[0])
 
     def GetDateStr(self):
-        #print self.date
+        # print(self.date)
         return FormatDate(self.date.tm_mday, self.date.tm_mon, self.date.tm_year)
 
 class CopySet:
@@ -153,12 +184,12 @@ class CopySet:
 
     def GetDstSubDirs(self):
         self.dirs = GetDirs(self.dstDir)
-        #print "self.dirs\n", self.dirs
+        # print("self.dirs\n", self.dirs)
         return self.dirs
 
     def GetSrcFiles(self):
         self.files = GetFiles(self.srcDir)
-        #print "self.files\n", self.files
+        # print("self.files\n", self.files)
         return self.files
 
     def GetSrcFilesJpg(self):
@@ -171,38 +202,49 @@ class CopySet:
 
     def GetDestDir(self, date):
         dstDir = self.dstDir + str(date.tm_year) + os.sep + "%04d_%02d_%02d" % (date.tm_year, date.tm_mon, date.tm_mday)
-        #print dstDir + "\n", self.dirs
+        # print(dstDir + "\n", self.dirs)
         already = [x for x in self.dirs if x.find(dstDir) >= 0]
         if already != []:
             dstDir = already[0]
-        print "dstDir", dstDir
+        print("dstDir", dstDir)
         return dstDir
 
     def CopyFiles(self):
-        print "number of files %d" % len(self.files)
+        print(f"number of files {len(self.files)}")
         for f in self.files:
-            print f
+            print(f)
             fileToCopy = File(f)
             dstDir = self.GetDestDir(fileToCopy.date)
-            if self.preserve_spaces :
+            if self.preserve_spaces:
                 destFile = dstDir + os.sep + os.path.basename(f)
-            else :
-                destFile = dstDir + os.sep + os.path.basename(f).replace(" ","_")
-            if not (os.path.isdir(dstDir)) :
+            else:
+                destFile = dstDir + os.sep + os.path.basename(f).replace(" ", "_")
+            if not (os.path.isdir(dstDir)):
                 os.makedirs(dstDir)
-                print "Folder for renaming: %s" % dstDir
-            if self.overwrite or (not os.path.isfile(destFile)):
-                print "Copy %s -> %s" % (os.path.basename(f), destFile)
+                print(f"Folder for renaming: {dstDir}")
+            if not os.path.isfile(destFile):
+                print(f"Copy {os.path.basename(f)} -> {destFile}")
                 shutil.copy(f, destFile)
             else:
-                print "Skipping, destination file already exists: %s" % destFile
+                if self.overwrite:
+                    print(f"Copying over destination file which already exists: {destFile}")
+                    shutil.copy(f, destFile)
+                else:
+                    src_hash = get_hash(f)
+                    dst_hash = get_hash(destFile)
+                    if src_hash == dst_hash:
+                        print(f"Destination file already exists and is the same: {destFile}")
+                    else:
+                        print(f"Renaming desination file to not overwriting file with the same name: {destFile}")
+                        destFile = rename_destfile(destFile)
+                        shutil.copy(f, destFile)
             if self.deleteOrig:
                 if (os.path.isfile(destFile) and \
                     os.path.getsize(destFile) == os.path.getsize(f)):
                     try:
                         os.remove(f)
                     except:
-                        print "failed to delete file: %s" % f
+                        print(f"failed to delete file: {f}")
 
 def main():
     parser = optparse.OptionParser()
@@ -220,10 +262,10 @@ def main():
     (options, args) = parser.parse_args()
 
     if not os.path.isdir(options.srcdir) :
-        print "Error: the source directory does not exist:\n\t%s" % options.srcdir
+        print(f"Error: the source directory does not exist:\n\t{options.srcdir}")
         return
     if not os.path.isdir(options.dstdir) :
-        print "Error: the destination directory does not exist:\n\t%s" % options.dstdir
+        print(f"Error: the destination directory does not exist:\n\t{options.dstdir}")
         return
 
     copySet = CopySet(options.srcdir, options.dstdir, options.overwrite, options.preserve_spaces, options.deleteOrig)
@@ -231,6 +273,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
 
