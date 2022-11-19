@@ -47,7 +47,11 @@ server {
 
 	location / {
 		# redirect to the cgi
-		return 301 http://$host/cgi/webalbum;
+		return 301 /cgi/webalbum;
+	}
+
+	location /webalbum {
+		alias /var/www/webalbum;
 	}
 
 	location /photos {

@@ -3,7 +3,7 @@ services:
   webalbum:
     build: .
     ports:
-      - "8080:80"
+      - "80:80"
     volumes:
       - ./config:/etc/webalbum:ro
       - /mnt/hddData/photos:/mnt/originalphotos:ro
