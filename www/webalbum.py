@@ -379,7 +379,6 @@ class AlbumItem(object):
     exif_file_exists = property(_get_exif_file_exists)
 
     def load_gps_from_file(self):
-        # assume file exists
         try:
             if not self.gps_file_exists:
                 logger.warning("GPS file not found: %s", self.gps_file_local)
