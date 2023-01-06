@@ -86,17 +86,8 @@ Python Module Requirements:
     - ffvideo (https://pypi.python.org/pypi/FFVideo)
 
 """
-#import logging
-#import logging.handlers
-#
-#logger = logging.getLogger('WebAlbum')
-#logger.setLevel(logging.DEBUG)
-#
-#handler = logging.handlers.SysLogHandler(address = '/dev/log')
-#
-#logger.addHandler(handler)
-#logger.info("test message")
-
+import logging
+import logging.handlers
 
 import cgi
 import cgitb
@@ -106,12 +97,17 @@ import traceback
 import os, sys, time, pickle
 import shlex, subprocess
 from subprocess import STDOUT,PIPE
-import getpass
 import urllib
 from PIL import Image
 from ffvideo import VideoStream
 
 from PIL.ExifTags import TAGS, GPSTAGS
+
+logger = logging.getLogger('WebAlbum')
+logger.setLevel(logging.INFO)
+
+handler = logging.StreamHandler(sys.stderr)
+logger.addHandler(handler)
 
 fs = cgi.FieldStorage()
 keys = fs.keys()
@@ -304,7 +300,8 @@ class AlbumItem(object):
                 self._fix_orientation()
                 self.im.save(thumbfile, "JPEG", quality=95)
             return os.path.exists(thumbfile)
-        except:
+        except Exception as exc:
+            logger.exception(exc)
             return False
 
     def _get_exif_data(self):
@@ -312,6 +309,7 @@ class AlbumItem(object):
             if self._exif_data is None:
                 self._exif_data = get_exif_data(self.im)
         except:
+            logger.warning("No exif info for %s", self.fullpath)
             self._exif_data = {}
         return self._exif_data
     exif_data = property(_get_exif_data)
@@ -350,7 +348,8 @@ class AlbumItem(object):
             ef.close()
             self.load_gps_from_file()
             return self._exif_data
-        except:
+        except Exception as exc:
+            logger.exception(exc)
             return None
 
     def _get_exif_file(self):
@@ -365,26 +364,31 @@ class AlbumItem(object):
     def createExifFile(self, force=False):
         exiffile = self.exif_file_local
         try:
-            if (not os.path.exists(exiffile)) or force:
+            if (not os.path.isfile(exiffile)) or force:
                 ef = open(exiffile, 'wb')
                 pickle.dump(self.exif_data, ef)
                 ef.close()
                 self.createGpsFile(force=force)
-            return os.path.exists(exiffile)
-        except:
+            return os.path.isfile(exiffile)
+        except Exception as exc:
+            logger.exception(exc)
             return False
 
     def _get_exif_file_exists(self):
-        return os.path.exists(self.exif_file_local)
+        return os.path.isfile(self.exif_file_local)
     exif_file_exists = property(_get_exif_file_exists)
 
     def load_gps_from_file(self):
         # assume file exists
         try:
+            if not self.gps_file_exists:
+                logger.warning("GPS file not found: %s", self.gps_file_local)
+                return None
             with open(self.gps_file_local) as gf:
                 self._gps = pickle.load(gf)
             return self._gps
-        except:
+        except Exception as exc:
+            logger.exception(exc)
             return None
 
     def _get_gps_file(self):
@@ -406,11 +410,12 @@ class AlbumItem(object):
                 with open(gpsfile, 'wb') as gf:
                     pickle.dump(self._gps, gf)
             return os.path.exists(gpsfile)
-        except:
+        except Exception as exc:
+            logger.exception(exc)
             return False
 
     def _get_gps_file_exists(self):
-        return os.path.exists(self.gps_file_local)
+        return os.path.isfile(self.gps_file_local)
     gps_file_exists = property(_get_gps_file_exists)
 
     def _get_gps(self):
@@ -432,7 +437,8 @@ class AlbumItem(object):
                 self._fix_orientation()
                 self.im.save(viewFile, "JPEG", quality=90)
             return os.path.exists(viewFile)
-        except:
+        except Exception as exc:
+            logger.exception(exc)
             return False
 
     def _get_view(self):
@@ -945,7 +951,8 @@ def get_video_link_with_thumbnail(item):
             pil_image.thumbnail(size)
             pil_image.save(outfile)
         fileOk=True
-    except:
+    except Exception as exc:
+        logger.exception(exc)
         fileOk=False
     out = ''
     imgPath = item.thumbnail_web if fileOk else ERROR_THUMBNAIL
@@ -1193,7 +1200,8 @@ def render_page():
 
         if not full_view:
             sys.stdout.write(HTML_Footer())
-    except:
+    except Exception as exc:
+        logger.exception(exc)
         sys.stdout.write('Content type: text/html\n\n')
         sys.stdout.write(traceback.format_exc())
 
