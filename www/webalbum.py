@@ -298,6 +298,9 @@ class AlbumItem(object):
                 size = 250,250
                 self.im.thumbnail(size)
                 self._fix_orientation()
+                # conversion sometimes needed when the original is a PNG (for example)
+                if self.im.mode != "RGB":
+                    self._im = self.im.convert("RGB")
                 self.im.save(thumbfile, "JPEG", quality=95)
             return os.path.exists(thumbfile)
         except Exception as exc:
@@ -434,6 +437,9 @@ class AlbumItem(object):
                 size = 900,900
                 self.im.thumbnail(size)
                 self._fix_orientation()
+                # conversion sometimes needed when the original is a PNG (for example)
+                if self.im.mode != "RGB":
+                    self._im = self.im.convert("RGB")
                 self.im.save(viewFile, "JPEG", quality=90)
             return os.path.exists(viewFile)
         except Exception as exc:
