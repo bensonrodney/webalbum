@@ -121,7 +121,7 @@ video_search = "" if 'video_search' not in keys else fs.getvalue('video_search')
 ############### BEGIN EXAMPLE CONF FILE ###################
 # [webalbum]
 # GMAPS_API_KEY = aasdfji8f98239487230497asdf
-# ALBUM_ROOT = /my/path/to/my/origianl/images/and/videos 
+# ALBUM_ROOT = /my/path/to/my/origianl/images/and/videos
 ################ END EXAMPLE CONF FILE ####################
 CONFIG_FILE="/etc/webalbum/webalbum.conf"
 
@@ -604,10 +604,10 @@ def get_css():
             width: 120px;
     }
 
-    #map-canvas { 
+    #map-canvas {
             height: 600px;
             width: 900px;
-            margin: 0; 
+            margin: 0;
             padding: 0;
     }
   </STYLE>
@@ -1003,7 +1003,7 @@ def render_full_image(item, nextImageLink=None):
     img = '<img id="fullsize" src="%s" style="width: 100%%; height: 100%%;" class="rotate%d"/>' \
           % (item.web_original, item.orientation_css)
     if nextImageLink is None:
-        return img+'\n' 
+        return img+'\n'
     else :
         return '<a href="%s">\n%s\n</a>\n' % (nextImageLink, img)
 
@@ -1056,9 +1056,9 @@ function doResize(){
     return out
 
 def render_full_view_file_page(item):
-    """ This writes a very basic page with just the full size original as the body, 
+    """ This writes a very basic page with just the full size original as the body,
     and the image links to the next full size original """
-    #return test_fs(item) 
+    #return test_fs(item)
 
     parent = AlbumItem(ALBUM_ROOT+'/'+item.parentdir)
     dirs, files, videos = GetFilesAndDirs(parent.path)
