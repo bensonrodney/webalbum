@@ -18,13 +18,7 @@ RUN apt-get update -q
 RUN DEBIAN_FRONTEND=noninteractive apt-get install --yes --no-install-recommends --fix-missing \
     python3 \
     python3-pip \
-    build-essential \
-    python3-dev \
     ipython3 \
-    libavutil-dev \
-    libavcodec-dev \
-    libavformat-dev \
-    libswscale-dev \
     nginx \
     uwsgi \
     vim
