@@ -347,9 +347,11 @@ class AlbumItem(object):
     def load_exif_data_from_file(self):
         # assume file exists
         try:
-            ef = open(self.exif_file_local)
-            self._exif_data = pickle.load(ef)
-            ef.close()
+            if not os.path.isfile(self.exif_file_local):
+                logger.warning("Exif file doesn't exist: %s", self.exif_file_local)
+                return None
+            with open(self.exif_file_local, mode='rb') as ef:
+                self._exif_data = pickle.load(ef)
             self.load_gps_from_file()
             return self._exif_data
         except Exception as exc:
@@ -369,9 +371,8 @@ class AlbumItem(object):
         exiffile = self.exif_file_local
         try:
             if (not os.path.isfile(exiffile)) or force:
-                ef = open(exiffile, 'wb')
-                pickle.dump(self.exif_data, ef)
-                ef.close()
+                with open(exiffile, mode='wb') as ef:
+                    pickle.dump(self.exif_data, ef)
                 self.createGpsFile(force=force)
             return os.path.isfile(exiffile)
         except Exception as exc:
@@ -387,7 +388,7 @@ class AlbumItem(object):
             if not self.gps_file_exists:
                 logger.warning("GPS file not found: %s", self.gps_file_local)
                 return None
-            with open(self.gps_file_local) as gf:
+            with open(self.gps_file_local, mode='rb') as gf:
                 self._gps = pickle.load(gf)
             return self._gps
         except Exception as exc:
@@ -410,7 +411,7 @@ class AlbumItem(object):
                 self._gps = get_lat_lon(self.exif_data)
                 if self._gps[0] is None or self._gps[1] is None:
                     return False
-                with open(gpsfile, 'wb') as gf:
+                with open(gpsfile, mode='wb') as gf:
                     pickle.dump(self._gps, gf)
             return os.path.exists(gpsfile)
         except Exception as exc:
