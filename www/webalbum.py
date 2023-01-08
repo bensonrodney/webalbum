@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 """
 The idea behind this web album is to reduce the effort required to keep web ablum up to date with
@@ -99,7 +99,8 @@ import shlex, subprocess
 from subprocess import STDOUT,PIPE
 import urllib
 from PIL import Image
-from ffvideo import VideoStream
+#from ffvideo import VideoStream
+from moviepy.editor import VideoFileClip
 
 from PIL.ExifTags import TAGS, GPSTAGS
 
@@ -183,8 +184,8 @@ VIEW_DIR = cfg.get_str("VIEW_DIR", "/view")
 ERROR_THUMBNAIL=WEB_PREVIEW_FILE_DIR+"/error_thumbnail.png"
 ERROR_VIEW=WEB_PREVIEW_FILE_DIR+"/error_view.png"
 
-#print "Content-type: text/html\n\n"
-#print "<html><h1>WebAlbum</h1><p>{} {} {}</p></html>".format(GMAPS_API_KEY, ALBUM_ROOT, PREVIEW_FILE_DIR)
+#print("Content-type: text/html\n\n")
+#print("<html><h1>WebAlbum</h1><p>{} {} {}</p></html>".format(GMAPS_API_KEY, ALBUM_ROOT, PREVIEW_FILE_DIR))
 #sys.exit(0)
 
 class AlbumItem(object):
@@ -258,7 +259,7 @@ class AlbumItem(object):
     im = property(_get_im)
 
     def _get_thumbnail(self):
-        return urllib.quote(self._clean(self._path),'')+".jpg"
+        return urllib.parse.quote(self._clean(self._path),'')+".jpg"
     thumbnail = property(_get_thumbnail)
 
     def _get_thumbnail_local(self):
@@ -356,7 +357,7 @@ class AlbumItem(object):
             return None
 
     def _get_exif_file(self):
-        return urllib.quote(self._clean(self._path),'')+".exif"
+        return urllib.parse.quote(self._clean(self._path),'')+".exif"
     exif_file = property(_get_exif_file)
 
     def _get_exif_file_local(self):
@@ -394,7 +395,7 @@ class AlbumItem(object):
             return None
 
     def _get_gps_file(self):
-        return urllib.quote(self._clean(self._path),'')+".gps"
+        return urllib.parse.quote(self._clean(self._path),'')+".gps"
     gps_file = property(_get_gps_file)
 
     def _get_gps_file_local(self):
@@ -447,7 +448,7 @@ class AlbumItem(object):
             return False
 
     def _get_view(self):
-        return urllib.quote(self._clean(self._path),'')+".jpg"
+        return urllib.parse.quote(self._clean(self._path),'')+".jpg"
     view = property(_get_view)
 
     def _get_view_local(self):
@@ -496,18 +497,9 @@ def _get_if_exist(data, key):
 
 def _convert_to_degress(value):
     """Helper function to convert the GPS coordinates stored in the EXIF to degress in float format"""
-    d0 = value[0][0]
-    d1 = value[0][1]
-    d = float(d0) / float(d1)
-
-    m0 = value[1][0]
-    m1 = value[1][1]
-    m = float(m0) / float(m1)
-
-    s0 = value[2][0]
-    s1 = value[2][1]
-    s = float(s0) / float(s1)
-
+    d = value[0]
+    m = value[1]
+    s = value[2]
     return d + (m / 60.0) + (s / 3600.0)
 
 def get_lat_lon(exif_data):
@@ -546,7 +538,7 @@ if __name__ == "__main__":
     sys.stdout.write(sys.argv[1]+" ")
     exif_data = get_exif_data(image)
     exif_data = get_exif_data(image)
-    print get_lat_lon(exif_data)
+    print(get_lat_lon(exif_data))
 """
 ####################################
 
@@ -658,7 +650,7 @@ def GetFilesAndDirs(subDir):
     if not path.endswith("/") and path!="":
         path += "/"
     contents = os.listdir(path)
-    #print contents
+    #print(contents)
     fullPaths = [path+d for d in contents]
     return separate_files(fullPaths)
 
@@ -778,12 +770,12 @@ def GetRequestMethod():
     return os.environ['REQUEST_METHOD']
 
 def get_path():
-    path = urllib.unquote(fs.getvalue("path") if 'path' in keys else "")
+    path = urllib.parse.unquote(fs.getvalue("path") if 'path' in keys else "")
     return path
 
 def escape_path(path):
     bits = path.split("/")
-    return "/".join([urllib.quote(bit,'') for bit in bits])
+    return "/".join([urllib.parse.quote(bit,'') for bit in bits])
 
 def isFullView():
     return "full_view" in keys
@@ -945,13 +937,18 @@ def get_video_link_with_thumbnail(item):
     try:
         if not os.path.exists(outfile):
             # make video thumbnail
-            try:
-                pil_image = VideoStream(item.fullpath).get_frame_at_sec(5).image()
-            except:
-                try:
-                    pil_image = VideoStream(item.fullpath).get_frame_at_sec(0.5).image()
-                except:
-                    pil_image = VideoStream(item.fullpath).get_frame_at_sec(0).image()
+            clip = VideoFileClip(item.fullpath)
+            fps = clip.reader.fps
+            nframes = clip.reader.nframes
+            if clip.duration > 5.0:
+                frame_time = 5.0
+            elif clip.duration > 0.5:
+                frame_time = 0.5
+            else:
+                frame_time = 0.0
+            frame = clip.get_frame(frame_time)
+            pil_image = Image.fromarray(frame)
+
             size = 250,250
             pil_image.thumbnail(size)
             pil_image.save(outfile)
