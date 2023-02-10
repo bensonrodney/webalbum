@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 
 # photocopy.py - Jason Milen, June 2012
-# The pupose of this python script is to copy photos and videos directly off Compact Flash
+# The purpose of this python script is to copy photos and videos directly off Compact Flash
 # or SD cards from cameras, USB drives or direct connection to a phone (and so on) and copy
 # all the photos, videos and other files into a series of directories which are in the format:
 #    [DESTINATION_ROOT]/YYYY/YYYY_MM_DD/
 #
 # There is an extra thing which I need and that is if I rename a destination folder like this:
 #    [DESTINATION_ROOT]/YYYY/YYYY_MM_DD-some-description/
-# and run the copy operation on more photos then a file which would normally go into that date
+# and run the copy operation on new photos then a file which would normally go into that dated folder
 # will still go into the folder with the modified name rather than a new folder with the same date.
 
 
@@ -23,6 +23,7 @@ import traceback
 
 from PIL import Image
 from PIL.ExifTags import TAGS
+from PIL import UnidentifiedImageError
 
 # used for hashing files
 BLOCK_SIZE = 65536  # The size of each read from the file
@@ -57,14 +58,18 @@ def get_exif_image(filepath):
     ret = {}
     try:
         i = Image.open(filepath)
-        info = i._getexif()
-        for tag, value in info.items():
-            decoded = TAGS.get(tag, tag)
-            ret[decoded] = value
-        return ret
-    except:
-        print(f"error retrieving exif data from {filepath}")
+    except UnidentifiedImageError as exc:
+        print(f"Error reading file as image (maybe it isn't an image?): {filepath}")
         return None
+
+    info = i._getexif()
+    if not hasattr(info, 'items'):
+        print(f"No EXIF data found in image: {filepath}")
+        return None
+    for tag, value in info.items():
+        decoded = TAGS.get(tag, tag)
+        ret[decoded] = value
+    return ret
 
 
 def get_date_from_filename(filepath):
@@ -263,14 +268,15 @@ def main():
 
     if not os.path.isdir(options.srcdir) :
         print(f"Error: the source directory does not exist:\n\t{options.srcdir}")
-        return
+        return 1
     if not os.path.isdir(options.dstdir) :
         print(f"Error: the destination directory does not exist:\n\t{options.dstdir}")
-        return
+        return 1
 
     copySet = CopySet(options.srcdir, options.dstdir, options.overwrite, options.preserve_spaces, options.deleteOrig)
     copySet.CopyFiles()
+    return 0
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
 
