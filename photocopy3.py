@@ -52,7 +52,7 @@ def rename_destfile(path):
     if not isinstance(path, Path):
         path = Path(path)
     suffix = path.suffix
-    return "{}-{:03d}{}".format(str(path)[:-len(suffix)], randint(0,1000), suffix)
+    return "{}-{:03d}{}".format(str(path)[:-len(suffix)], randint(0, 1000), suffix)
 
 
 # get embedded image data
@@ -61,7 +61,7 @@ def get_exif_image(filepath):
     try:
         i = Image.open(filepath)
     except UnidentifiedImageError as exc:
-        print(f"Error reading file as image (maybe it isn't an image?): {filepath}")
+        print(f"Error reading file as image (maybe it isn't an image?): {filepath} {str(exc)}")
         return None
 
     info = i._getexif()
@@ -92,8 +92,9 @@ def get_date_from_filename(filepath):
         date_str = "%s %s %s" % (date[0:4], date[4:6], date[6:8])
         retval = time.strptime(date_str, "%Y %m %d")
         return retval
-    except:
+    except Exception as exc:
         traceback.print_exc()
+        print(f"debug: exc {str(exc)}")
         return None
 
 
@@ -119,8 +120,8 @@ def get_files(rootdir):
     fullFileList = []
     for (path, dirs, files) in os.walk(rootdir):
         for f in files:
-            # this double os.sep replace is needed because linux and windows don't behave the same
-            # with the os.sep at the end of the path
+            # this double os.sep replace is needed because linux and windows don't behave
+            # the same with the os.sep at the end of the path
             filePath = (path + os.sep + f).replace(os.sep + os.sep, os.sep)
             if os.path.isfile(filePath):  # just a double check
                 fullFileList.append(filePath)
@@ -151,8 +152,9 @@ class File:
         if self.exif is not None:
             try:
                 self.dateExif = self.exif['DateTimeOriginal']
-            except:
+            except Exception as exc:
                 self.dateExif = None
+                print(f"debug: exception {str(exc)}")
         self.get_date()
         self.date_str = self.get_date_str()
         self.year = self.date_str[:4]
@@ -176,6 +178,7 @@ class File:
     def get_date_str(self):
         # print(self.date)
         return format_date(self.date.tm_mday, self.date.tm_mon, self.date.tm_year)
+
 
 class CopySet:
     def __init__(self, src_dir, dst_dir, overwrite=False, preserve_spaces=True, delete_orig=False):
@@ -208,7 +211,8 @@ class CopySet:
         return self.src_files_other
 
     def get_dst_dir(self, date):
-        dst_dir = self.dst_dir + str(date.tm_year) + os.sep + "%04d_%02d_%02d" % (date.tm_year, date.tm_mon, date.tm_mday)
+        dst_dir = f"{self.dst_dir}{str(date.tm_year)}{os.sep}"
+        dst_dir += "%04d_%02d_%02d" % (date.tm_year, date.tm_mon, date.tm_mday)
         # print(dst_dir + "\n", self.dirs)
         already = [x for x in self.dirs if x.find(dst_dir) >= 0]
         if already != []:
@@ -246,32 +250,33 @@ class CopySet:
                         destFile = rename_destfile(destFile)
                         shutil.copy(f, destFile)
             if self.delete_orig:
-                if (os.path.isfile(destFile) and \
-                    os.path.getsize(destFile) == os.path.getsize(f)):
+                if (os.path.isfile(destFile) and
+                        os.path.getsize(destFile) == os.path.getsize(f)):
                     try:
                         os.remove(f)
-                    except:
-                        print(f"failed to delete file: {f}")
+                    except Exception as exc:
+                        print(f"failed to delete file: {f} {str(exc)}")
+
 
 def main():
     parser = optparse.OptionParser()
     parser.add_option("-s", "--sourcedir", dest="srcdir",
-                  help="source directory of files to be copied", metavar="SRCDIR", default="NULL")
+                      help="source directory of files to be copied", metavar="SRCDIR", default="NULL")
     parser.add_option("-d", "--destdir", dest="dstdir",
-                  help="destination directory where the files are to be copied", metavar="DSTDIR", default="NULL")
+                      help="destination directory where the files are to be copied", metavar="DSTDIR", default="NULL")
     parser.add_option("-o", action="store_true", dest="overwrite", default=False,
-                  help="if the destination file already exists this option will cause the file to be overwritten" )
+                      help="if the destination file already exists this option will cause the file to be overwritten")
     parser.add_option("-p", action="store_true", dest="preserve_spaces", default=False,
-                  help="this option will stop the file names from having spaces replaced with \"_\"" )
+                      help="this option will stop the file names from having spaces replaced with \"_\"")
     parser.add_option("-D", action="store_true", dest="delete_orig", default=False,
-                  help="attempt to delete the original file once it has been copied")
+                      help="attempt to delete the original file once it has been copied")
 
     (options, args) = parser.parse_args()
 
-    if not os.path.isdir(options.srcdir) :
+    if not os.path.isdir(options.srcdir):
         print(f"Error: the source directory does not exist:\n\t{options.srcdir}")
         return 1
-    if not os.path.isdir(options.dstdir) :
+    if not os.path.isdir(options.dstdir):
         print(f"Error: the destination directory does not exist:\n\t{options.dstdir}")
         return 1
 
@@ -279,6 +284,6 @@ def main():
     copy_set.copy_files()
     return 0
 
+
 if __name__ == '__main__':
     sys.exit(main())
-
