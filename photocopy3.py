@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-# photocopy.py - Jason Milen, June 2012
+# photocopy3.py - Jason Milen, June 2012 (This is the python3 version of photocopy.py)
+#
 # The purpose of this python script is to copy photos and videos directly off Compact Flash
 # or SD cards from cameras, USB drives or direct connection to a phone (and so on) and copy
 # all the photos, videos and other files into a series of directories which are in the format:
@@ -15,6 +16,7 @@
 import hashlib
 import optparse
 import os
+import sys
 from pathlib import Path
 from random import randint
 import shutil
@@ -29,7 +31,7 @@ from PIL import UnidentifiedImageError
 BLOCK_SIZE = 65536  # The size of each read from the file
 
 
-def FormatDate(day, month, year):
+def format_date(day, month, year):
     return str(year) + '_' + str(month) + '_' + str(day)
 
 
@@ -87,8 +89,8 @@ def get_date_from_filename(filepath):
         int(date)  # will raise an exception if not all digits
         if date[0:2] != '20':
             return None
-        dateStr = "%s %s %s" % (date[0:4], date[4:6], date[6:8])
-        retval = time.strptime(dateStr, "%Y %m %d")
+        date_str = "%s %s %s" % (date[0:4], date[4:6], date[6:8])
+        retval = time.strptime(date_str, "%Y %m %d")
         return retval
     except:
         traceback.print_exc()
@@ -100,12 +102,12 @@ def get_file_date(filepath):
     return creationTime
 
 
-def MakeTimeFromDate(day, month, year):
+def make_time_from_date(day, month, year):
     return time.localtime(time.mktime((int(year), int(month), int(day), 12, 0, 0, 0, 0, 0)))
 
 
 # Get all the subdirectories of the rootdir
-def GetDirs(rootdir):
+def get_dirs(rootdir):
     paths = []
     for (path, dirs, files) in os.walk(rootdir):
         paths.append(path)
@@ -113,7 +115,7 @@ def GetDirs(rootdir):
 
 
 # get all the files within and in the subdirs of rootdir. Files are returned with the path
-def GetFiles(rootdir):
+def get_files(rootdir):
     fullFileList = []
     for (path, dirs, files) in os.walk(rootdir):
         for f in files:
@@ -125,101 +127,101 @@ def GetFiles(rootdir):
     return fullFileList
 
 
-def PathWithSeparator(path):
-    newPath = path.strip()
-    if newPath[-1] != os.sep:
-        newPath = newPath + os.sep
-    return newPath
+def path_with_separator(path):
+    new_path = path.strip()
+    if new_path[-1] != os.sep:
+        new_path = new_path + os.sep
+    return new_path
 
 
-def PathWitoutSeparator(path):
-    newPath = path.strip()
-    if newPath[-1] == os.sep:
-        newPath = newPath[:-1]
-    return newPath
+def path_without_separator(path):
+    new_path = path.strip()
+    if new_path[-1] == os.sep:
+        new_path = new_path[:-1]
+    return new_path
 
 
 # File class is used to self determine the file date but the date will come from the EXIF
 # data in a JPG if the data can be extracted.
 class File:
-    def __init__(self, imageFilePath):
-        self.imageFilePath = imageFilePath
-        self.exif = get_exif_image(imageFilePath)
+    def __init__(self, image_file_path):
+        self.image_file_path = image_file_path
+        self.exif = get_exif_image(image_file_path)
         # print("self.exif\n", self.exif)
         if self.exif is not None:
             try:
                 self.dateExif = self.exif['DateTimeOriginal']
             except:
                 self.dateExif = None
-        self.GetDate()
-        self.dateStr = self.GetDateStr()
-        self.year = self.dateStr[:4]
+        self.get_date()
+        self.date_str = self.get_date_str()
+        self.year = self.date_str[:4]
 
-    def GetDate(self):
+    def get_date(self):
         if self.exif is None or self.dateExif is None:
             # try to get the date from the file name
-            self.date = get_date_from_filename(self.imageFilePath)
+            self.date = get_date_from_filename(self.image_file_path)
             if self.date is None:
                 # if that fails, get the date from the file date
-                self.date = get_file_date(self.imageFilePath)
+                self.date = get_file_date(self.image_file_path)
         else:
-            tmpDate = self.dateExif[:10].split(":")
+            tmp_date = self.dateExif[:10].split(":")
             # if the date is '-' separated rather than ':' separated
             # then handle that case
-            if len(tmpDate) < 3:
-                tmpDate = tmpDate[0].split("-")
-            print(tmpDate)
-            self.date = MakeTimeFromDate(tmpDate[2], tmpDate[1], tmpDate[0])
+            if len(tmp_date) < 3:
+                tmp_date = tmp_date[0].split("-")
+            print(tmp_date)
+            self.date = make_time_from_date(tmp_date[2], tmp_date[1], tmp_date[0])
 
-    def GetDateStr(self):
+    def get_date_str(self):
         # print(self.date)
-        return FormatDate(self.date.tm_mday, self.date.tm_mon, self.date.tm_year)
+        return format_date(self.date.tm_mday, self.date.tm_mon, self.date.tm_year)
 
 class CopySet:
-    def __init__(self, srcDir, dstDir, overwrite=False, preserve_spaces=True, deleteOrig=False):
-        self.srcDir = PathWithSeparator(srcDir.strip())
-        self.dstDir = PathWithSeparator(dstDir.strip())
-        self.GetDstSubDirs()
-        self.GetSrcFiles()
-        self.GetSrcFilesJpg()
-        self.GetSrcFilesOther
+    def __init__(self, src_dir, dst_dir, overwrite=False, preserve_spaces=True, delete_orig=False):
+        self.src_dir = path_with_separator(src_dir.strip())
+        self.dst_dir = path_with_separator(dst_dir.strip())
+        self.get_dst_sub_dirs()
+        self.get_src_files()
+        self.get_src_files_jpg()
+        self.get_src_files_other
         self.overwrite = overwrite
         self.preserve_spaces = preserve_spaces
-        self.deleteOrig = deleteOrig
+        self.delete_orig = delete_orig
 
-    def GetDstSubDirs(self):
-        self.dirs = GetDirs(self.dstDir)
+    def get_dst_sub_dirs(self):
+        self.dirs = get_dirs(self.dst_dir)
         # print("self.dirs\n", self.dirs)
         return self.dirs
 
-    def GetSrcFiles(self):
-        self.files = GetFiles(self.srcDir)
+    def get_src_files(self):
+        self.files = get_files(self.src_dir)
         # print("self.files\n", self.files)
         return self.files
 
-    def GetSrcFilesJpg(self):
-        self.srcFilesJpg = [x for x in self.files if x[-4:].lower() == ".jpg"]
-        return self.srcFilesJpg
+    def get_src_files_jpg(self):
+        self.src_files_jpg = [x for x in self.files if x[-4:].lower() == ".jpg"]
+        return self.src_files_jpg
 
-    def GetSrcFilesOther(self):
-        self.srcFilesOther = [x for x in self.files if x[-4:].lower() != ".jpg"]
-        return self.srcFilesOther
+    def get_src_files_other(self):
+        self.src_files_other = [x for x in self.files if x[-4:].lower() != ".jpg"]
+        return self.src_files_other
 
-    def GetDestDir(self, date):
-        dstDir = self.dstDir + str(date.tm_year) + os.sep + "%04d_%02d_%02d" % (date.tm_year, date.tm_mon, date.tm_mday)
-        # print(dstDir + "\n", self.dirs)
-        already = [x for x in self.dirs if x.find(dstDir) >= 0]
+    def get_dst_dir(self, date):
+        dst_dir = self.dst_dir + str(date.tm_year) + os.sep + "%04d_%02d_%02d" % (date.tm_year, date.tm_mon, date.tm_mday)
+        # print(dst_dir + "\n", self.dirs)
+        already = [x for x in self.dirs if x.find(dst_dir) >= 0]
         if already != []:
-            dstDir = already[0]
-        print("dstDir", dstDir)
-        return dstDir
+            dst_dir = already[0]
+        print("dst_dir", dst_dir)
+        return dst_dir
 
-    def CopyFiles(self):
+    def copy_files(self):
         print(f"number of files {len(self.files)}")
         for f in self.files:
             print(f)
             fileToCopy = File(f)
-            dstDir = self.GetDestDir(fileToCopy.date)
+            dstDir = self.get_dst_dir(fileToCopy.date)
             if self.preserve_spaces:
                 destFile = dstDir + os.sep + os.path.basename(f)
             else:
@@ -243,7 +245,7 @@ class CopySet:
                         print(f"Renaming desination file to not overwriting file with the same name: {destFile}")
                         destFile = rename_destfile(destFile)
                         shutil.copy(f, destFile)
-            if self.deleteOrig:
+            if self.delete_orig:
                 if (os.path.isfile(destFile) and \
                     os.path.getsize(destFile) == os.path.getsize(f)):
                     try:
@@ -261,7 +263,7 @@ def main():
                   help="if the destination file already exists this option will cause the file to be overwritten" )
     parser.add_option("-p", action="store_true", dest="preserve_spaces", default=False,
                   help="this option will stop the file names from having spaces replaced with \"_\"" )
-    parser.add_option("-D", action="store_true", dest="deleteOrig", default=False,
+    parser.add_option("-D", action="store_true", dest="delete_orig", default=False,
                   help="attempt to delete the original file once it has been copied")
 
     (options, args) = parser.parse_args()
@@ -273,8 +275,8 @@ def main():
         print(f"Error: the destination directory does not exist:\n\t{options.dstdir}")
         return 1
 
-    copySet = CopySet(options.srcdir, options.dstdir, options.overwrite, options.preserve_spaces, options.deleteOrig)
-    copySet.CopyFiles()
+    copy_set = CopySet(options.srcdir, options.dstdir, options.overwrite, options.preserve_spaces, options.delete_orig)
+    copy_set.copy_files()
     return 0
 
 if __name__ == '__main__':
