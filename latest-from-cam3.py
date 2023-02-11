@@ -1,9 +1,27 @@
 #!/usr/bin/env python3
 
+import logging
+from logging import handlers
 import os
 import sys
 from PIL import Image
 from PIL.ExifTags import TAGS
+
+# setup logging to stdout and syslog
+logger = logging.getLogger(__file__)
+logger.setLevel(logging.DEBUG)
+formatter_stdout = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+formatter_syslog = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+handler_stdout = logging.StreamHandler(sys.stdout)
+handler_syslog = handlers.SysLogHandler(address='/dev/log')
+handlers_and_formatters = [
+    (handler_stdout, formatter_stdout),
+    (handler_syslog, formatter_syslog),
+]
+for handler, formatter in handlers_and_formatters:
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
 
 def get_exif_data(image):
     """Returns a dictionary from the exif data of an PIL Image item. Also converts the GPS Tags"""
@@ -13,15 +31,15 @@ def get_exif_data(image):
             decoded = TAGS.get(tag, tag)
             if decoded == "Model":
                 return value
-
     return None
+
 
 def get_camera_from_image(imgfile):
     try:
         img = Image.open(imgfile)
-        return get_exif_data(img) 
+        return get_exif_data(img)
     except Image.UnidentifiedImageError as exc:
-        print(f"{imgfile}: {str(exc)}")
+        logger.error(f"{imgfile}: {str(exc)}")
 
 
 def find_files(path, filt=None):
@@ -31,6 +49,7 @@ def find_files(path, filt=None):
     filteredfiles.sort()
     return filteredfiles
 
+
 def find_cam_files(path, cam_search):
     camfiles = []
     for f in find_files(path):
@@ -38,6 +57,7 @@ def find_cam_files(path, cam_search):
         if (camera is not None) and (cam_search.lower() in camera.lower()):
             camfiles.append((f, camera))
     return camfiles
+
 
 def list_cam_files(path, cam_search, limit=50):
     camfiles = find_cam_files(path, cam_search)
@@ -50,6 +70,7 @@ def list_cam_files(path, cam_search, limit=50):
         for f, camera in camfiles:
             print("{:<100} {}".format(f, camera))
 
+
 def get_cams_list(path):
     cams = set()
     for f in find_files(path):
@@ -58,6 +79,7 @@ def get_cams_list(path):
             cams.add(camera)
     return list(cams)
 
+
 def list_cams(path):
     cams = get_cams_list(path)
     print("path: {}".format(path))
@@ -65,6 +87,7 @@ def list_cams(path):
         print("No camera info found")
     else:
         print('\n'.join(cams))
+
 
 def main():
     import optparse
@@ -90,6 +113,6 @@ def main():
     list_cam_files(options.path, options.camera, limit=options.limit)
     return 0
 
+
 if __name__ == '__main__':
     sys.exit(main())
-
