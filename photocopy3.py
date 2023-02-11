@@ -14,6 +14,8 @@
 
 
 import hashlib
+import logging
+from logging import handlers
 import optparse
 import os
 import sys
@@ -29,6 +31,21 @@ from PIL import UnidentifiedImageError
 
 # used for hashing files
 BLOCK_SIZE = 65536  # The size of each read from the file
+
+# setup logging to stdout and syslog
+logger = logging.getLogger(__file__)
+logger.setLevel(logging.DEBUG)
+formatter_stdout = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+formatter_syslog = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
+handler_stdout = logging.StreamHandler(sys.stdout)
+handler_syslog = handlers.SysLogHandler(address='/dev/log')
+handlers_and_formatters = [
+    (handler_stdout, formatter_stdout),
+    (handler_syslog, formatter_syslog),
+]
+for handler, formatter in handlers_and_formatters:
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 def format_date(day, month, year):
@@ -61,12 +78,12 @@ def get_exif_image(filepath):
     try:
         i = Image.open(filepath)
     except UnidentifiedImageError as exc:
-        print(f"Error reading file as image (maybe it isn't an image?): {filepath} {str(exc)}")
+        logger.error(f"Error reading file as image (maybe it isn't an image?): {filepath} {str(exc)}")
         return None
 
     info = i._getexif()
     if not hasattr(info, 'items'):
-        print(f"No EXIF data found in image: {filepath}")
+        logger.error(f"No EXIF data found in image: {filepath}")
         return None
     for tag, value in info.items():
         decoded = TAGS.get(tag, tag)
@@ -77,13 +94,13 @@ def get_exif_image(filepath):
 def get_date_from_filename(filepath):
     """If the filename is of the format YYYYMMDD_hhmmss
     """
-    print(f"debug: {filepath}")
+    logger.debug(f"DEBUG: {filepath}")
     fname = os.path.basename(filepath)
-    print(f"debug: {fname}")
+    logger.debug(f"DEBUG: {fname}")
     date = fname.split("_")[0]
     if len(date) != 8:
-        print(f"debug: {date}")
-        print("debug: date len != 8")
+        logger.debug(f"DEBUG: {date}")
+        logger.debug("DEBUG: date len != 8")
         return None
     try:
         int(date)  # will raise an exception if not all digits
@@ -94,7 +111,7 @@ def get_date_from_filename(filepath):
         return retval
     except Exception as exc:
         traceback.print_exc()
-        print(f"debug: exc {str(exc)}")
+        logger.debug(f"debug: exc {str(exc)}")
         return None
 
 
@@ -148,13 +165,12 @@ class File:
     def __init__(self, image_file_path):
         self.image_file_path = image_file_path
         self.exif = get_exif_image(image_file_path)
-        # print("self.exif\n", self.exif)
         if self.exif is not None:
             try:
                 self.dateExif = self.exif['DateTimeOriginal']
             except Exception as exc:
                 self.dateExif = None
-                print(f"debug: exception {str(exc)}")
+                logger.error(f"ERROR: exception {str(exc)}")
         self.get_date()
         self.date_str = self.get_date_str()
         self.year = self.date_str[:4]
@@ -172,11 +188,10 @@ class File:
             # then handle that case
             if len(tmp_date) < 3:
                 tmp_date = tmp_date[0].split("-")
-            print(tmp_date)
+            logger.info(tmp_date)
             self.date = make_time_from_date(tmp_date[2], tmp_date[1], tmp_date[0])
 
     def get_date_str(self):
-        # print(self.date)
         return format_date(self.date.tm_mday, self.date.tm_mon, self.date.tm_year)
 
 
@@ -194,12 +209,10 @@ class CopySet:
 
     def get_dst_sub_dirs(self):
         self.dirs = get_dirs(self.dst_dir)
-        # print("self.dirs\n", self.dirs)
         return self.dirs
 
     def get_src_files(self):
         self.files = get_files(self.src_dir)
-        # print("self.files\n", self.files)
         return self.files
 
     def get_src_files_jpg(self):
@@ -213,17 +226,16 @@ class CopySet:
     def get_dst_dir(self, date):
         dst_dir = f"{self.dst_dir}{str(date.tm_year)}{os.sep}"
         dst_dir += "%04d_%02d_%02d" % (date.tm_year, date.tm_mon, date.tm_mday)
-        # print(dst_dir + "\n", self.dirs)
         already = [x for x in self.dirs if x.find(dst_dir) >= 0]
         if already != []:
             dst_dir = already[0]
-        print("dst_dir", dst_dir)
+        logger.info(f"dst_dir {dst_dir}")
         return dst_dir
 
     def copy_files(self):
-        print(f"number of files {len(self.files)}")
+        logger.info(f"number of files {len(self.files)}")
         for f in self.files:
-            print(f)
+            logger.info(f)
             fileToCopy = File(f)
             dstDir = self.get_dst_dir(fileToCopy.date)
             if self.preserve_spaces:
@@ -232,21 +244,21 @@ class CopySet:
                 destFile = dstDir + os.sep + os.path.basename(f).replace(" ", "_")
             if not (os.path.isdir(dstDir)):
                 os.makedirs(dstDir)
-                print(f"Folder for renaming: {dstDir}")
+                logger.info(f"Folder for renaming: {dstDir}")
             if not os.path.isfile(destFile):
-                print(f"Copy {os.path.basename(f)} -> {destFile}")
+                logger.info(f"Copy {os.path.basename(f)} -> {destFile}")
                 shutil.copy(f, destFile)
             else:
                 if self.overwrite:
-                    print(f"Copying over destination file which already exists: {destFile}")
+                    logger.warning(f"Copying over destination file which already exists: {destFile}")
                     shutil.copy(f, destFile)
                 else:
                     src_hash = get_hash(f)
                     dst_hash = get_hash(destFile)
                     if src_hash == dst_hash:
-                        print(f"Destination file already exists and is the same: {destFile}")
+                        logger.info(f"Destination file already exists and is the same: {destFile}")
                     else:
-                        print(f"Renaming desination file to not overwriting file with the same name: {destFile}")
+                        logger.info(f"Renaming desination file to not overwriting file with the same name: {destFile}")
                         destFile = rename_destfile(destFile)
                         shutil.copy(f, destFile)
             if self.delete_orig:
@@ -255,7 +267,7 @@ class CopySet:
                     try:
                         os.remove(f)
                     except Exception as exc:
-                        print(f"failed to delete file: {f} {str(exc)}")
+                        logger.error(f"failed to delete file: {f} {str(exc)}")
 
 
 def main():
@@ -274,10 +286,10 @@ def main():
     (options, args) = parser.parse_args()
 
     if not os.path.isdir(options.srcdir):
-        print(f"Error: the source directory does not exist:\n\t{options.srcdir}")
+        logger.error(f"Error: the source directory does not exist:\n\t{options.srcdir}")
         return 1
     if not os.path.isdir(options.dstdir):
-        print(f"Error: the destination directory does not exist:\n\t{options.dstdir}")
+        logger.error(f"Error: the destination directory does not exist:\n\t{options.dstdir}")
         return 1
 
     copy_set = CopySet(options.srcdir, options.dstdir, options.overwrite, options.preserve_spaces, options.delete_orig)
