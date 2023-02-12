@@ -63,4 +63,7 @@ on platforms other than Ubuntu. For this reason I've made it available as a dock
 I'm thinking of adding a search capability which will help find folders or images from within
 the source images.
 
+In the `python` directory you can run the setup script `python3 setup.py install` to install the helper utilities `photocopy3` and `latest-from-cam3` which are used to moved unorganised media from a source directory into the main album with the `YYYY/YYYY_MM_DD` directory naming format. I can also handle suffixes being added to the directory names and will still put new photos
+into existing directories that have had a suffix added to the name. NOTE: you might want to create a virturlenv in which to install these utilities just in case any of the installed packages clash with those already used by your system.
+
 Enjoy. 
